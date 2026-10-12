@@ -4,16 +4,54 @@ import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.es
 
 // Reports quote PR text, which anyone can write. Sanitise everything before it reaches the DOM:
 // script on this page could call the self-edit endpoint.
-mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default' });
+const token = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+mermaid.initialize({
+    startOnLoad: false,
+    securityLevel: 'strict',
+    theme: 'base',
+    themeVariables: {
+        darkMode: true,
+        background: token('--ir-surface-sunk'),
+        primaryColor: token('--ir-surface'),
+        primaryBorderColor: token('--ir-cyan'),
+        primaryTextColor: token('--ir-text'),
+        lineColor: token('--ir-text-muted'),
+        textColor: token('--ir-text'),
+        actorBkg: token('--ir-surface'),
+        actorBorder: token('--ir-cyan'),
+        noteBkgColor: token('--ir-surface-raised'),
+        noteTextColor: token('--ir-text'),
+        fontFamily: token('--ir-font-body'),
+    },
+});
 
 const $ = id => document.getElementById(id);
 
-for (const tab of document.querySelectorAll('.tab')) {
-    tab.addEventListener('click', () => {
-        document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === tab));
-        document.querySelectorAll('.panel').forEach(p => (p.hidden = p.id !== tab.dataset.panel));
-    });
+// Hash routes: #inbox (default), #analyze (inbox with the URL field focused), #settings.
+function route() {
+    const hash = location.hash.slice(1) || 'inbox';
+    const screen = hash === 'settings' ? 'settings' : 'inbox';
+    for (const page of document.querySelectorAll('.page')) page.hidden = page.id !== `screen-${screen}`;
+    for (const link of document.querySelectorAll('.app-nav a')) {
+        if (link.dataset.nav === screen) link.setAttribute('aria-current', 'page');
+        else link.removeAttribute('aria-current');
+    }
+    $('chat-screen').textContent = `On: ${$(`screen-${screen}`).dataset.screen}`;
+    if (hash === 'analyze') $('pr').focus();
 }
+addEventListener('hashchange', route);
+route();
+
+function setChatOpen(open) {
+    $('chat').hidden = !open;
+    $('chat-launcher').hidden = open;
+    (open ? $('request') : $('chat-launcher')).focus();
+}
+$('chat-launcher').addEventListener('click', () => setChatOpen(true));
+$('chat-close').addEventListener('click', () => setChatOpen(false));
+addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !$('chat').hidden) setChatOpen(false);
+});
 
 async function post(url, body, onEvent) {
     const res = await fetch(url, {
@@ -81,7 +119,7 @@ $('explain-form').addEventListener('submit', async event => {
     const report = $('report');
     const activity = $('explain-activity');
     const steps = activity.querySelector('ol');
-    report.innerHTML = '<p class="muted">Reading the pull request…</p>';
+    report.innerHTML = '<p class="meta">Reading the pull request…</p>';
     steps.innerHTML = '';
     activity.hidden = true;
     $('explain-context').textContent = '';
@@ -95,11 +133,12 @@ $('explain-form').addEventListener('submit', async event => {
                 $('explain-context').textContent =
                     `${e.title} · ${e.issue ? `Branch names ${e.issue}` : 'No issue key in the branch'}` +
                     (e.omittedFiles.length ? ` · ${e.omittedFiles.length} large file(s) left out of the diff` : '');
-                report.innerHTML = '<p class="muted">Investigating…</p>';
+                report.innerHTML = '<p class="meta">Investigating…</p>';
             } else if (e.type === 'model') {
                 $('explain-context').textContent += ` · ${describeModel(e)}`;
             } else if (e.type === 'session') {
                 $('explain-context').textContent += ` · ${describeSession(e)}`;
+                $('settings-session').textContent = `Last session: ${describeSession(e)}`;
             } else if (e.type === 'tool') {
                 activity.hidden = false;
                 const li = document.createElement('li');
@@ -134,7 +173,7 @@ function logLine(text, cls) {
 }
 
 async function waitForRestart(previousSha) {
-    logLine('Restarting…', 'muted');
+    logLine('Restarting…', 'step');
     for (let i = 0; i < 60; i++) {
         await new Promise(r => setTimeout(r, 1000));
         try {
@@ -151,21 +190,21 @@ $('change-form').addEventListener('submit', async event => {
     event.preventDefault();
     const button = event.submitter;
     button.disabled = true;
-    $('change-log').innerHTML = '';
+    logLine($('request').value, 'bubble-user');
     const before = (await (await fetch('/api/health')).json()).sha;
     let restart = false;
     let narration = null;
     try {
         await post('/api/self-edit', { request: $('request').value }, e => {
             if (e.type === 'text') {
-                narration ??= logLine('', 'narration');
+                narration ??= logLine('', 'bubble-claude');
                 narration.textContent += e.delta;
                 return;
             }
             narration = null;
-            if (e.type === 'tool') logLine(`→ ${describeTool(e)}`, 'mono');
-            else if (e.type === 'model') logLine(describeModel(e), 'muted');
-            else if (e.type === 'session') logLine(describeSession(e), 'muted');
+            if (e.type === 'tool') logLine(`→ ${describeTool(e)}`, 'step');
+            else if (e.type === 'model') logLine(describeModel(e), 'step');
+            else if (e.type === 'session') logLine(describeSession(e), 'step');
             else if (e.type === 'checks') logLine(e.ok ? '✓ checks pass' : `✗ checks fail\n${e.output}`, e.ok ? 'ok' : 'error');
             else if (e.type === 'committed') logLine(`Committed ${e.sha}: ${e.message}`, 'ok');
             else if (e.type === 'discarded') logLine(`Discarded the attempt — ${e.reason}`, 'error');
@@ -173,6 +212,7 @@ $('change-form').addEventListener('submit', async event => {
             else if (e.type === 'error') logLine(e.error, 'error');
         });
         if (restart) await waitForRestart(before);
+        else $('request').value = '';
     } finally {
         button.disabled = false;
     }
@@ -190,9 +230,4 @@ $('undo').addEventListener('click', async () => {
 });
 
 const health = await (await fetch('/api/health')).json();
-$('version').textContent = health.sha;
-for (const line of health.recent) {
-    const li = document.createElement('li');
-    li.textContent = line;
-    $('history').append(li);
-}
+$('version').textContent = `Running ${health.sha}.`;

@@ -13,10 +13,12 @@ const PORT = Number(process.env.PORT ?? 4317);
 // The supervisor restarts the server when it exits with this code.
 export const RESTART_EXIT_CODE = 75;
 
+// Paths relative to the repo root. tokens.css is served from the design handoff so there is one copy.
 const STATIC: Record<string, string> = {
-    '/': 'index.html',
-    '/app.js': 'app.js',
-    '/style.css': 'style.css',
+    '/': 'public/index.html',
+    '/app.js': 'public/app.js',
+    '/style.css': 'public/style.css',
+    '/tokens.css': 'docs/design/tokens.css',
 };
 const TYPES: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' };
 
@@ -49,7 +51,7 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
     if (req.method === 'GET' && STATIC[url.pathname]) {
         const file = STATIC[url.pathname];
         res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] });
-        res.end(await readFile(path.join(ROOT, 'public', file)));
+        res.end(await readFile(path.join(ROOT, file)));
         return;
     }
 
