@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Io</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header>
+    <h1>Io</h1>
+    <nav>
+        <button class="tab active" data-panel="explain">Explain a PR</button>
+        <button class="tab" data-panel="change">Change Io</button>
+    </nav>
+    <span id="version" class="muted"></span>
+</header>
+
+<main>
+    <section id="explain" class="panel">
+        <form id="explain-form">
+            <input id="pr" placeholder="https://github.com/owner/repo/pull/123  or  owner/repo#123" autocomplete="off" required>
+            <button type="submit">Explain</button>
+        </form>
+        <div id="explain-context" class="muted"></div>
+        <details id="explain-activity" hidden><summary>Investigation</summary><ol></ol></details>
+        <article id="report" class="report"></article>
+    </section>
+
+    <section id="change" class="panel" hidden>
+        <form id="change-form">
+            <textarea id="request" rows="4" placeholder="Describe a change to Io itself — e.g. &quot;add a copy-as-markdown button under the report&quot;" required></textarea>
+            <button type="submit">Make the change</button>
+        </form>
+        <p class="muted">Io edits its own code, runs the typecheck and tests, commits on success and restarts. Failed attempts are discarded.</p>
+        <ol id="change-log" class="log"></ol>
+        <h2>Recent commits</h2>
+        <ol id="history" class="log mono"></ol>
+        <button id="undo" type="button">Undo last self-edit</button>
+    </section>
+</main>
+
+<script type="module" src="/app.js"></script>
+</body>
+</html>
