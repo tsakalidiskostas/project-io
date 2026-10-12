@@ -3,6 +3,7 @@ import { initChat, setChatScreen } from './js/chat.js';
 import { $, h } from './js/dom.js';
 import { renderInbox } from './js/inbox.js';
 import { renderSettings } from './js/settings.js';
+import { initUsageMeter } from './js/usage-meter.js';
 
 // Hash routes:
 //   #inbox[?filter=attention|aligned|nolink|dismissed][&focus=1]   the PR inbox
@@ -49,4 +50,5 @@ async function route() {
 
 addEventListener('hashchange', route);
 await initChat();
+initUsageMeter();
 await route();

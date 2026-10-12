@@ -12,6 +12,7 @@ import { runOrThrow } from './run.ts';
 import { selfEdit } from './self-edit/agent.ts';
 import { revertLastSelfEdit } from './self-edit/git.ts';
 import { defaultStore } from './store.ts';
+import { planUsage } from './usage.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.PORT ?? 4317);
@@ -100,6 +101,8 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
         const sha = (await runOrThrow('git', ['rev-parse', '--short', 'HEAD'], ROOT)).trim();
         return json(res, { sha });
     }
+
+    if (route === 'GET /api/usage') return json(res, { usage: await planUsage({ fresh: url.searchParams.get('fresh') === '1' }) });
 
     if (route === 'GET /api/profile') {
         const [auth, servers] = await Promise.all([authStatus(), listIoServers()]);

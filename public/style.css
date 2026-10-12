@@ -140,6 +140,21 @@ button:disabled { opacity: 0.55; cursor: progress; }
 .app-nav a.nav-green { color: var(--ir-green); }
 .app-nav a[aria-current="page"] { background: var(--ir-surface-raised); }
 
+/* Plan usage meter, bottom-left; the floating nav owns the bottom-right. */
+.usage-meter {
+    position: fixed; left: 20px; bottom: 20px; z-index: 10;
+    display: flex; align-items: center; gap: var(--ir-space-3);
+    min-height: var(--ir-touch); padding: 0 var(--ir-space-4);
+    background: var(--ir-surface-sunk); border: 1px solid var(--ir-border); border-radius: var(--ir-radius-pill);
+    box-shadow: var(--ir-shadow-float);
+    color: var(--ir-text); text-decoration: none; font-size: var(--ir-fs-meta);
+}
+.usage-meter:hover { color: var(--ir-text); border-color: var(--v); }
+.usage-meter .eyebrow { color: var(--ir-text-muted); }
+.usage-meter b { color: var(--v-text); font: 800 var(--ir-fs-meta) var(--ir-font-display); }
+.usage-bar { width: 72px; height: 6px; border-radius: var(--ir-radius-pill); background: var(--ir-surface-raised); overflow: hidden; }
+.usage-bar span { display: block; height: 100%; background: var(--v); }
+
 /* ---------- Inbox ---------- */
 .page-header { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--ir-space-6); }
 .page-title { flex: 999 1 420px; display: flex; flex-direction: column; gap: var(--ir-space-2); }

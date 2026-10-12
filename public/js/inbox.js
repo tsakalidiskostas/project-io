@@ -34,6 +34,7 @@ export function startAnalysis(input) {
             job.error = e.error;
         } else if (e.type === 'done') {
             pending.delete(key);
+            dispatchEvent(new Event('io:usage-changed'));
         } else {
             job.step = describeStep(e) ?? job.step;
         }
