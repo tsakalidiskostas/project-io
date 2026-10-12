@@ -16,9 +16,14 @@ export interface AgentRun {
     signal?: AbortSignal;
 }
 
+export interface AgentResult {
+    text: string;
+    structured: unknown;
+}
+
 // Io never calls the Claude API itself: the Agent SDK spawns the Claude Code CLI as a subprocess and
 // streams its output. The session runs in Io's own profile, so its login and MCP servers are Io's.
-export async function runAgent({ prompt, choice, options, onEvent, signal }: AgentRun): Promise<string> {
+export async function runAgent({ prompt, choice, options, onEvent, signal }: AgentRun): Promise<AgentResult> {
     onEvent({ type: 'model', ...choice });
     const abortController = new AbortController();
     signal?.addEventListener('abort', () => abortController.abort(), { once: true });
@@ -43,7 +48,7 @@ export async function runAgent({ prompt, choice, options, onEvent, signal }: Age
     throw new Error('Claude Code exited without a result.');
 }
 
-function handle(message: SDKMessage, onEvent: (e: LoopEvent) => void): string | undefined {
+function handle(message: SDKMessage, onEvent: (e: LoopEvent) => void): AgentResult | undefined {
     if (message.type === 'system' && message.subtype === 'init') {
         onEvent({
             type: 'session',
@@ -67,7 +72,7 @@ function handle(message: SDKMessage, onEvent: (e: LoopEvent) => void): string | 
             const detail = message.subtype === 'success' ? message.result : message.errors.join('; ') || message.subtype;
             throw new Error(`Claude stopped: ${detail}`);
         }
-        return message.result;
+        return { text: message.result, structured: message.structured_output };
     }
     return undefined;
 }

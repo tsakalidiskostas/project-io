@@ -28,3 +28,6 @@ export function chooseExplainModel({ diffChars, files }: { diffChars: number; fi
 export const SELF_EDIT_MODEL: ModelChoice = { model: 'opus', effort: 'high', reason: 'editing Io itself' };
 
 const kb = (chars: number) => `${Math.round(chars / 1000)}k chars of diff`;
+
+// Extracting claims reads a description and an issue, never code: Sonnet at low effort is plenty.
+export const INTENT_MODEL: ModelChoice = { model: 'sonnet', effort: 'low', reason: 'extracting claims from the issue and description' };

@@ -86,7 +86,7 @@ export async function selfEdit(root: string, request: string, onEvent: (e: SelfE
     });
 
     try {
-        const summary = await runAgent({
+        const { text: summary } = await runAgent({
             prompt: `Change requested by the user:\n\n${request}`,
             choice: SELF_EDIT_MODEL,
             options: {

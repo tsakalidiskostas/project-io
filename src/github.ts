@@ -10,6 +10,10 @@ export interface PullRequest {
     ref: PrRef;
     title: string;
     body: string;
+    url: string;
+    additions: number;
+    deletions: number;
+    changedFiles: number;
     author: string;
     state: string;
     baseRefName: string;
@@ -34,7 +38,7 @@ const slug = (ref: PrRef) => `${ref.owner}/${ref.repo}`;
 
 // `gh` rather than a token of our own: it already holds the user's GitHub login, private orgs included.
 export async function fetchPullRequest(ref: PrRef): Promise<PullRequest> {
-    const fields = 'title,body,author,state,baseRefName,headRefName,baseRefOid,headRefOid,commits,files';
+    const fields = 'title,body,url,additions,deletions,changedFiles,author,state,baseRefName,headRefName,baseRefOid,headRefOid,commits,files';
     const [json, diff] = await Promise.all([
         runOrThrow('gh', ['pr', 'view', String(ref.number), '--repo', slug(ref), '--json', fields]),
         runOrThrow('gh', ['pr', 'diff', String(ref.number), '--repo', slug(ref)]),
@@ -61,4 +65,34 @@ export async function searchRepoCode(ref: PrRef, query: string): Promise<string>
     const hits: { path: string; textMatches: { fragment: string }[] }[] = JSON.parse(result.stdout);
     if (hits.length === 0) return 'No matches (note: GitHub code search only indexes the default branch).';
     return hits.map(h => `${h.path}\n${h.textMatches.map(t => `  ${t.fragment.trim()}`).join('\n')}`).join('\n\n');
+}
+
+export async function postPrComment(ref: PrRef, body: string): Promise<string> {
+    const out = await runOrThrow('gh', ['pr', 'comment', String(ref.number), '--repo', slug(ref), '--body', body]);
+    return out.trim();
+}
+
+// Inline comments must target a line inside the diff; GitHub answers 422 otherwise.
+export async function postInlineComment(ref: PrRef, commitId: string, path: string, line: number, body: string): Promise<string> {
+    const out = await runOrThrow('gh', [
+        'api',
+        `repos/${slug(ref)}/pulls/${ref.number}/comments`,
+        '-f', `body=${body}`,
+        '-f', `commit_id=${commitId}`,
+        '-f', `path=${path}`,
+        '-F', `line=${line}`,
+        '-f', 'side=RIGHT',
+        '--jq', '.html_url',
+    ]);
+    return out.trim();
+}
+
+export async function fetchPrState(ref: PrRef): Promise<{ state: string; headRefOid: string }> {
+    return JSON.parse(await runOrThrow('gh', ['pr', 'view', String(ref.number), '--repo', slug(ref), '--json', 'state,headRefOid']));
+}
+
+// Branch names are not searchable, so this finds PRs whose title or body names the issue key.
+export async function findPrsForIssue(key: string): Promise<{ url: string; title: string; state: string }[]> {
+    const out = await runOrThrow('gh', ['search', 'prs', key, '--limit', '10', '--json', 'url,title,state']);
+    return JSON.parse(out);
 }

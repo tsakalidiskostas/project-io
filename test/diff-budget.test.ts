@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { budgetDiff } from '../src/explain.ts';
+import { budgetDiff } from '../src/analyze.ts';
 
 const file = (name: string, size: number) =>
     `diff --git a/${name} b/${name}\n--- a/${name}\n+++ b/${name}\n${'+'.repeat(size)}\n`;
