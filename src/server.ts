@@ -20,7 +20,7 @@ const PORT = Number(process.env.PORT ?? 4317);
 // The supervisor restarts the server when it exits with this code.
 export const RESTART_EXIT_CODE = 75;
 
-const TYPES: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' };
+const TYPES: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml' };
 
 // Files under public/ by extension, plus tokens.css straight from the design handoff so there is one copy.
 function staticFile(pathname: string): string | null {
