@@ -7,6 +7,7 @@ import { parsePrRef } from './github.ts';
 import { selfEdit } from './self-edit/agent.ts';
 import { revertLastSelfEdit } from './self-edit/git.ts';
 import { runOrThrow } from './run.ts';
+import { authStatus, discoverProfiles, importServer, IO_CLAUDE_DIR, listIoServers } from './profile.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.PORT ?? 4317);
@@ -60,6 +61,21 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
         const log = await runOrThrow('git', ['log', '-10', '--format=%h%x09%s'], ROOT);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true, sha, recent: log.trim().split('\n') }));
+        return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/profile') {
+        const [auth, servers] = await Promise.all([authStatus(), listIoServers()]);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, dir: IO_CLAUDE_DIR, auth, servers, importable: discoverProfiles() }));
+        return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/profile/import') {
+        const { profile, name, scope } = await readJson(req);
+        await importServer(String(profile), String(name), String(scope));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
         return;
     }
 

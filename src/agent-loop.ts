@@ -1,5 +1,6 @@
 import { query, type Options, type SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { ModelChoice } from './model-choice.ts';
+import { ensureIoProfile, ioSessionEnv } from './profile.ts';
 
 export type LoopEvent =
     | ({ type: 'model' } & ModelChoice)
@@ -16,7 +17,7 @@ export interface AgentRun {
 }
 
 // Io never calls the Claude API itself: the Agent SDK spawns the Claude Code CLI as a subprocess and
-// streams its output, so the session uses the user's own `claude` login and MCP servers.
+// streams its output. The session runs in Io's own profile, so its login and MCP servers are Io's.
 export async function runAgent({ prompt, choice, options, onEvent, signal }: AgentRun): Promise<string> {
     onEvent({ type: 'model', ...choice });
     const abortController = new AbortController();
@@ -30,7 +31,7 @@ export async function runAgent({ prompt, choice, options, onEvent, signal }: Age
             includePartialMessages: true,
             persistSession: false,
             abortController,
-            env: { ...process.env, CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1' },
+            env: { ...ioSessionEnv(ensureIoProfile()), CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1' },
             ...options,
         },
     });
@@ -54,7 +55,7 @@ function handle(message: SDKMessage, onEvent: (e: LoopEvent) => void): string | 
         if (e.type === 'content_block_delta' && e.delta.type === 'text_delta') onEvent({ type: 'text', delta: e.delta.text });
     } else if (message.type === 'assistant') {
         if (message.error === 'authentication_failed') {
-            throw new Error('Claude Code is not logged in. Run `claude` in a terminal and use /login, then try again.');
+            throw new Error("Io's Claude profile is not signed in. Run `npm run claude -- auth login` in Io's folder, then try again.");
         }
         for (const block of message.message.content) {
             if (block.type === 'tool_use' && message.parent_tool_use_id === null) {

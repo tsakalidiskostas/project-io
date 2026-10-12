@@ -18,8 +18,11 @@ Read by Claude Code, and by Io's own self-edit agent (`src/self-edit/agent.ts`),
   this page can reach the self-edit endpoint.
 - Never commit PR content, explanations or anything under `data/`. They can quote private code.
 - Io never calls the Claude API from its own process. Every model call is a Claude Code CLI session spawned through
-  the Agent SDK (`src/agent-loop.ts`), using the user's login and MCP servers. Never add `@anthropic-ai/sdk`, an
-  API key, a token or an MCP config of Io's own.
+  the Agent SDK (`src/agent-loop.ts`). Never add `@anthropic-ai/sdk`, an API key or a token.
+- Sessions always run in Io's own Claude Code profile (`src/profile.ts`, `~/.io/claude`). Its login and MCP servers
+  belong to Io, not to the shell that started it. Build every session's env with `ioSessionEnv()`.
+- Never send MCP `env` or `headers` values to the browser. They often hold tokens. `summariseServer()` is the only
+  shape the UI gets.
 - The model and effort for each session come from `src/model-choice.ts`: the cheapest model that still produces a
   trustworthy result. Use CLI aliases (`haiku`, `sonnet`, `opus`), not model IDs.
 - Commits follow Conventional Commits: `type(scope): imperative summary`. The types are

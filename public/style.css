@@ -46,6 +46,31 @@ h1 {
 
 h2 { margin: 0; font: 800 var(--ir-fs-h2)/1.25 var(--ir-font-display); }
 .h2-yellow { color: var(--ir-yellow); }
+.h2-green { color: var(--ir-green); }
+.h2-purple { color: var(--ir-purple); }
+
+/* Settings rows and verdict-style badges (HANDOFF §2: never colour alone, always a label). */
+.rows { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
+.rows li {
+    display: flex; flex-wrap: wrap; align-items: center; gap: var(--ir-space-2) var(--ir-space-4);
+    padding: var(--ir-space-3) 0; border-top: 1px solid var(--ir-divider);
+}
+.rows li:first-child { border-top: 0; }
+.row-name { flex: 0 1 200px; font-weight: 700; }
+.row-target { flex: 999 1 260px; font-family: var(--ir-font-code); font-size: 13px; color: var(--ir-text-muted); overflow-wrap: anywhere; }
+.profile-label { margin: var(--ir-space-4) 0 0; font: 700 var(--ir-fs-label) var(--ir-font-label); letter-spacing: .08em; text-transform: uppercase; color: var(--ir-purple-text); }
+.badge {
+    font: 700 var(--ir-fs-badge) var(--ir-font-label); letter-spacing: .08em; text-transform: uppercase;
+    padding: 4px 10px; border-radius: var(--ir-radius-pill); white-space: nowrap;
+}
+.badge-green { background: var(--ir-delivered-tint); color: var(--ir-green); }
+.badge-orange { background: var(--ir-partial-tint); color: var(--ir-orange); }
+.badge-pink { background: var(--ir-missing-tint); color: var(--ir-pink-text); }
+.badge-muted { background: var(--ir-surface-sunk); color: var(--ir-text-muted); }
+.btn-secondary {
+    background: transparent; border: 1.5px solid var(--ir-purple); color: var(--ir-purple-text);
+    padding: 0 var(--ir-space-4);
+}
 
 .subtitle { margin: 0; font-size: 18px; color: var(--ir-text-muted); }
 .meta { margin: 0; font-size: var(--ir-fs-meta); color: var(--ir-text-muted); }

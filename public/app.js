@@ -38,8 +38,88 @@ function route() {
     }
     $('chat-screen').textContent = `On: ${$(`screen-${screen}`).dataset.screen}`;
     if (hash === 'analyze') $('pr').focus();
+    if (screen === 'settings') loadSettings();
 }
 addEventListener('hashchange', route);
+
+const STATUS_BADGE = {
+    connected: ['Connected', 'badge-green'],
+    'needs-auth': ['Needs sign-in', 'badge-orange'],
+    failed: ['Failed', 'badge-pink'],
+    unknown: ['Unknown', 'badge-muted'],
+};
+
+function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+}
+
+async function loadSettings() {
+    let profile;
+    try {
+        profile = await (await fetch('/api/profile')).json();
+        if (!profile.ok) throw new Error(profile.error);
+    } catch (err) {
+        $('profile-auth').textContent = `Could not read Io's profile: ${err.message}`;
+        return;
+    }
+    $('profile-dir').textContent = profile.dir;
+    $('profile-auth').textContent = profile.auth.loggedIn
+        ? `Signed in${profile.auth.email ? ` as ${profile.auth.email}` : ''} (${profile.auth.authMethod}).`
+        : "Not signed in. In Io's folder, run:  npm run claude -- auth login";
+
+    const servers = $('profile-servers');
+    servers.replaceChildren();
+    if (!profile.servers.length) servers.append(el('li', 'meta', 'None yet. Import some below.'));
+    for (const s of profile.servers) {
+        const [label, cls] = STATUS_BADGE[s.status];
+        const li = el('li');
+        li.append(el('span', 'row-name', s.name), el('span', 'row-target', s.target), el('span', `badge ${cls}`, label));
+        servers.append(li);
+    }
+
+    const importArea = $('profile-import');
+    importArea.replaceChildren();
+    if (!profile.importable.length) importArea.append(el('p', 'meta', 'No other Claude profiles with MCP servers were found.'));
+    for (const p of profile.importable) {
+        importArea.append(el('h3', 'profile-label', p.label));
+        const list = el('ul', 'rows');
+        for (const s of p.servers) {
+            const li = el('li');
+            li.append(el('span', 'row-name', s.name), el('span', 'row-target', `${s.target} · ${s.scope}`));
+            if (s.inIo) {
+                li.append(el('span', 'badge badge-muted', 'In Io'));
+            } else {
+                const button = el('button', 'btn btn-secondary', 'Import');
+                button.type = 'button';
+                button.setAttribute('aria-label', `Import ${s.name} from ${p.label}`);
+                button.addEventListener('click', () => importServer(button, p.label, s));
+                li.append(button);
+            }
+            list.append(li);
+        }
+        importArea.append(list);
+    }
+}
+
+async function importServer(button, profile, server) {
+    button.disabled = true;
+    $('import-status').className = 'meta';
+    $('import-status').textContent = `Importing ${server.name}…`;
+    try {
+        await post('/api/profile/import', { profile, name: server.name, scope: server.scope });
+        $('import-status').className = 'ok';
+        $('import-status').textContent = `Imported ${server.name}.`;
+        await loadSettings();
+    } catch (err) {
+        $('import-status').className = 'error';
+        $('import-status').textContent = `Could not import ${server.name}: ${err.message}`;
+        button.disabled = false;
+    }
+}
+
 route();
 
 function setChatOpen(open) {
@@ -138,7 +218,6 @@ $('explain-form').addEventListener('submit', async event => {
                 $('explain-context').textContent += ` · ${describeModel(e)}`;
             } else if (e.type === 'session') {
                 $('explain-context').textContent += ` · ${describeSession(e)}`;
-                $('settings-session').textContent = `Last session: ${describeSession(e)}`;
             } else if (e.type === 'tool') {
                 activity.hidden = false;
                 const li = document.createElement('li');

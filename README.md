@@ -25,12 +25,18 @@ Needs Node 24+ (it runs TypeScript directly), [Claude Code](https://code.claude.
 
 ## No keys of its own
 
-Io runs Claude through the [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/overview), which drives the
-Claude Code binary on your machine. So:
+Io never calls the Claude API itself. It runs Claude Code CLI sessions through the
+[Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/overview), and those sessions use **Io's own Claude Code
+profile** in `~/.io/claude` (or `IO_CLAUDE_CONFIG_DIR`). The shell or profile you start Io from doesn't matter.
 
-- **Claude** uses whatever login `claude` already has, whether claude.ai or an API key. `CLAUDE_CONFIG_DIR` is respected.
-- **MCP servers** are the ones you configured in Claude Code (`claude mcp add --scope user …`), plus your claude.ai
-  connectors. Io shows which ones connected. While explaining a PR it may only call MCP tools whose names read as
+- **Claude:** sign Io's profile in once:
+  ```bash
+  npm run claude -- auth login
+  ```
+  An `ANTHROPIC_API_KEY` in the shell is ignored.
+- **MCP servers:** Settings lists the servers in every Claude profile on the machine (`~/.claude`, `~/.claude-*`).
+  **Import** copies one into Io's profile. Sign-ins don't carry over, so a server that uses OAuth needs one sign-in
+  in Io: run `npm run claude`, then `/mcp`. While explaining a PR, Io may only call MCP tools whose names read as
   lookups (`get_*`, `list_*`, `search_*`, …), and it denies everything else.
 - **GitHub** goes through your `gh` session, so Io can read any private repository you can.
 
@@ -63,6 +69,8 @@ scripts/supervisor.ts   restarts the server after a self-edit (exit code 75)
 src/server.ts           HTTP server and routes
 src/explain.ts          PR explanation: prompt, tools, diff budgeting
 src/agent-loop.ts       runs Claude Code through the Agent SDK and streams events
+src/profile.ts          Io's own Claude Code profile: login status, MCP servers, import
+scripts/claude.ts       `npm run claude`: Claude Code in Io's profile, for sign-ins
 src/github.ts           gh CLI wrapper
 src/linear.ts           issue-key extraction from branch names
 src/self-edit/          the self-editing agent, its path guard and git helpers

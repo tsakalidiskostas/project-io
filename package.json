@@ -10,6 +10,7 @@
   "scripts": {
     "start": "node --env-file-if-exists=.env scripts/supervisor.ts",
     "serve": "node --env-file-if-exists=.env src/server.ts",
+    "claude": "node scripts/claude.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --test \"test/**/*.test.ts\"",
     "check": "npm run typecheck && npm test"

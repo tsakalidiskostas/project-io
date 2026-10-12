@@ -40,15 +40,23 @@
 
 <main id="screen-settings" class="page" data-screen="Settings" hidden>
     <h1>Settings</h1>
-    <section class="card" aria-label="Connections">
-        <h2 class="h2-yellow">Connections</h2>
-        <p>Io keeps no keys of its own. It borrows what is already logged in on this machine:</p>
-        <ul class="plain">
-            <li><strong>Claude</strong>: your Claude Code login (<code>claude</code>, then <code>/login</code>).</li>
-            <li><strong>GitHub</strong>: the GitHub CLI (<code>gh auth login</code>).</li>
-            <li><strong>Linear and other tools</strong>: MCP servers registered in Claude Code at user scope (<code>claude mcp add --scope user …</code>; sign in with <code>/mcp</code>).</li>
-        </ul>
-        <p id="settings-session" class="meta">The connected MCP servers appear here after your first analysis.</p>
+    <section class="card" aria-label="Claude profile">
+        <h2 class="h2-yellow">Io's Claude profile</h2>
+        <p>Io runs Claude Code in a profile of its own, whichever shell or profile you start it from. Its login and MCP servers live in <code id="profile-dir">…</code>. GitHub goes through the GitHub CLI (<code>gh auth login</code>).</p>
+        <p id="profile-auth" class="meta" role="status">Checking…</p>
+    </section>
+
+    <section class="card" aria-label="MCP servers">
+        <h2 class="h2-green">MCP servers in Io</h2>
+        <ul id="profile-servers" class="rows"><li class="meta">Checking…</li></ul>
+        <p class="meta">A server marked “needs sign-in”: run <code>npm run claude</code> in Io's folder, type <code>/mcp</code>, pick the server and choose Authenticate.</p>
+    </section>
+
+    <section class="card" aria-label="Import MCP servers">
+        <h2 class="h2-purple">Import from your other Claude profiles</h2>
+        <p class="meta">Copies a server's definition into Io's profile. Sign-ins don't carry over, so servers that use OAuth need one sign-in in Io.</p>
+        <div id="profile-import"><p class="meta">Checking…</p></div>
+        <p id="import-status" class="meta" role="status"></p>
     </section>
 </main>
 
