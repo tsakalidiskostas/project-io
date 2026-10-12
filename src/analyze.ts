@@ -84,8 +84,9 @@ function repoTools(pr: PullRequest) {
 }
 
 // The intent phase may look things up in the user's own MCP servers; nothing may change state.
+// ToolSearch only loads tool definitions, so it is safe to allow.
 const intentTools: CanUseTool = async (name, input) =>
-    name.startsWith('mcp__') && isReadOnlyToolName(name)
+    name === 'ToolSearch' || (name.startsWith('mcp__') && isReadOnlyToolName(name))
         ? { behavior: 'allow', updatedInput: input }
         : { behavior: 'deny', message: 'Read-only lookups only.' };
 
@@ -132,20 +133,23 @@ export async function analyzePullRequest(input: string, onEvent: (e: AnalyzeEven
     onEvent({ type: 'phase', phase: 'intent', label: 'Extracting claims from the issue and description' });
     const intentRun = await runAgent({
         prompt: `<pull_request>\n${pr.title}\n${pr.url}\n\n${pr.body || '(no description)'}\n</pull_request>\n\n${
-            branchKey ? `The branch names issue ${branchKey}.` : 'The branch names no issue.'
+            branchKey
+                ? `The branch names issue ${branchKey}. Load it, and its parent, with your issue-tracker tools before you answer; leave issue empty only if no tool can load it.`
+                : 'The branch names no issue.'
         }`,
         choice: INTENT_MODEL,
         options: {
             cwd,
             systemPrompt: INTENT_SYSTEM,
             settingSources: [],
-            tools: [],
+            tools: ['ToolSearch'],
             canUseTool: intentTools,
             outputFormat: { type: 'json_schema', schema: toOutputSchema(IntentOutput) },
             maxTurns: 15,
         },
         onEvent,
         signal,
+        waitForMcp: true,
     });
     const intent = IntentOutput.parse(intentRun.structured);
 

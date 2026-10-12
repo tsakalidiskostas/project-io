@@ -1,4 +1,4 @@
-import { query, type Options, type SDKMessage } from '@anthropic-ai/claude-agent-sdk';
+import { query, type Options, type SDKMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { ModelChoice } from './model-choice.ts';
 import { ensureIoProfile, ioSessionEnv } from './profile.ts';
 
@@ -14,6 +14,19 @@ export interface AgentRun {
     options: Omit<Options, 'model' | 'effort'>;
     onEvent(event: LoopEvent): void;
     signal?: AbortSignal;
+    // Hold the prompt while claude.ai connectors connect; they arrive about 4s after startup, and
+    // a model asked sooner answers without them. Polling is not possible: a status request sent
+    // before the first message kills the CLI.
+    waitForMcp?: boolean;
+}
+
+const MCP_STARTUP_WAIT_MS = 5_000;
+
+// The input stream must stay open until the turn's result: Claude Code exits as soon as it closes.
+async function* promptAfterDelay(prompt: string, finished: Promise<void>): AsyncGenerator<SDKUserMessage> {
+    await new Promise(r => setTimeout(r, MCP_STARTUP_WAIT_MS));
+    yield { type: 'user', message: { role: 'user', content: prompt }, parent_tool_use_id: null };
+    await finished;
 }
 
 export interface AgentResult {
@@ -23,13 +36,17 @@ export interface AgentResult {
 
 // Io never calls the Claude API itself: the Agent SDK spawns the Claude Code CLI as a subprocess and
 // streams its output. The session runs in Io's own profile, so its login and MCP servers are Io's.
-export async function runAgent({ prompt, choice, options, onEvent, signal }: AgentRun): Promise<AgentResult> {
+export async function runAgent({ prompt, choice, options, onEvent, signal, waitForMcp }: AgentRun): Promise<AgentResult> {
     onEvent({ type: 'model', ...choice });
     const abortController = new AbortController();
     signal?.addEventListener('abort', () => abortController.abort(), { once: true });
 
+    let finish = () => undefined as void;
+    const finished = new Promise<void>(resolve => (finish = resolve));
+    signal?.addEventListener('abort', finish, { once: true });
+
     const messages = query({
-        prompt,
+        prompt: waitForMcp ? promptAfterDelay(prompt, finished) : prompt,
         options: {
             model: choice.model,
             effort: choice.effort,
@@ -41,11 +58,15 @@ export async function runAgent({ prompt, choice, options, onEvent, signal }: Age
         },
     });
 
-    for await (const message of messages) {
-        const result = handle(message, onEvent);
-        if (result !== undefined) return result;
+    try {
+        for await (const message of messages) {
+            const result = handle(message, onEvent);
+            if (result !== undefined) return result;
+        }
+        throw new Error('Claude Code exited without a result.');
+    } finally {
+        finish();
     }
-    throw new Error('Claude Code exited without a result.');
 }
 
 function handle(message: SDKMessage, onEvent: (e: LoopEvent) => void): AgentResult | undefined {
