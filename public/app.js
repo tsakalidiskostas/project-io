@@ -58,9 +58,21 @@ async function renderDiagrams(target) {
     }
 }
 
+function describeModel(e) {
+    return `${e.model[0].toUpperCase()}${e.model.slice(1)}, ${e.effort} effort (${e.reason})`;
+}
+
+function describeSession(e) {
+    const servers = e.mcpServers
+        .filter(s => s.name !== 'io')
+        .map(s => `${s.name} ${s.status === 'connected' ? '✓' : `(${s.status})`}`);
+    return `via ${e.auth}${servers.length ? ` · MCP: ${servers.join(', ')}` : ''}`;
+}
+
 function describeTool(e) {
     const input = e.input ?? {};
-    return `${e.name}${input.path ? ` ${input.side ? `${input.side}:` : ''}${input.path}` : input.query ? ` “${input.query}”` : ''}`;
+    const shown = input.file_path ?? input.path;
+    return `${e.name.replace(/^mcp__io__/, '')}${shown ? ` ${input.side ? `${input.side}:` : ''}${shown}` : input.query ? ` “${input.query}”` : input.command ? ` ${input.command}` : ''}`;
 }
 
 $('explain-form').addEventListener('submit', async event => {
@@ -81,13 +93,17 @@ $('explain-form').addEventListener('submit', async event => {
         await post('/api/explain', { pr: $('pr').value }, e => {
             if (e.type === 'context') {
                 $('explain-context').textContent =
-                    `${e.title} · ${e.issue ? `Intent from ${e.issue}` : 'No Linear issue loaded'}` +
+                    `${e.title} · ${e.issue ? `Branch names ${e.issue}` : 'No issue key in the branch'}` +
                     (e.omittedFiles.length ? ` · ${e.omittedFiles.length} large file(s) left out of the diff` : '');
                 report.innerHTML = '<p class="muted">Investigating…</p>';
-            } else if (e.type === 'tool' || e.type === 'tool_error') {
+            } else if (e.type === 'model') {
+                $('explain-context').textContent += ` · ${describeModel(e)}`;
+            } else if (e.type === 'session') {
+                $('explain-context').textContent += ` · ${describeSession(e)}`;
+            } else if (e.type === 'tool') {
                 activity.hidden = false;
                 const li = document.createElement('li');
-                li.textContent = e.type === 'tool' ? describeTool(e) : `${e.name} failed: ${e.error}`;
+                li.textContent = describeTool(e);
                 steps.append(li);
                 text = '';
             } else if (e.type === 'text') {
@@ -148,7 +164,8 @@ $('change-form').addEventListener('submit', async event => {
             }
             narration = null;
             if (e.type === 'tool') logLine(`→ ${describeTool(e)}`, 'mono');
-            else if (e.type === 'tool_error') logLine(`✗ ${e.name}: ${e.error}`, 'error');
+            else if (e.type === 'model') logLine(describeModel(e), 'muted');
+            else if (e.type === 'session') logLine(describeSession(e), 'muted');
             else if (e.type === 'checks') logLine(e.ok ? '✓ checks pass' : `✗ checks fail\n${e.output}`, e.ok ? 'ok' : 'error');
             else if (e.type === 'committed') logLine(`Committed ${e.sha}: ${e.message}`, 'ok');
             else if (e.type === 'discarded') logLine(`Discarded the attempt — ${e.reason}`, 'error');

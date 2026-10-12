@@ -1,114 +1,83 @@
-import Anthropic from '@anthropic-ai/sdk';
-import type { z } from 'zod';
-
-export const MODEL = 'claude-opus-5-5';
-
-const client = new Anthropic();
-
-export interface LoopTool<S extends z.ZodType = z.ZodType> {
-    name: string;
-    description: string;
-    inputSchema: Anthropic.Beta.BetaTool.InputSchema;
-    schema: S;
-    run(input: z.infer<S>): Promise<string>;
-}
+import { query, type Options, type SDKMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { ModelChoice } from './model-choice.ts';
 
 export type LoopEvent =
+    | ({ type: 'model' } & ModelChoice)
+    | { type: 'session'; auth: string; mcpServers: { name: string; status: string }[] }
     | { type: 'text'; delta: string }
-    | { type: 'tool'; name: string; input: unknown }
-    | { type: 'tool_error'; name: string; error: string };
+    | { type: 'tool'; name: string; input: unknown };
 
-export interface LoopOptions {
-    system: string;
+export interface AgentRun {
     prompt: string;
-    tools: LoopTool[];
-    effort: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
-    maxTurns: number;
+    choice: ModelChoice;
+    options: Omit<Options, 'model' | 'effort'>;
     onEvent(event: LoopEvent): void;
     signal?: AbortSignal;
 }
 
-export async function runToolLoop(opts: LoopOptions): Promise<Anthropic.Beta.BetaMessage> {
-    const tools: Anthropic.Beta.BetaTool[] = opts.tools.map(t => ({
-        name: t.name,
-        description: t.description,
-        input_schema: t.inputSchema,
-        eager_input_streaming: true,
-    }));
-    const byName = new Map(opts.tools.map(t => [t.name, t]));
-    const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: 'user', content: opts.prompt }];
-    let jsonRetries = 0;
+// Io never calls the Claude API itself: the Agent SDK spawns the Claude Code CLI as a subprocess and
+// streams its output, so the session uses the user's own `claude` login and MCP servers.
+export async function runAgent({ prompt, choice, options, onEvent, signal }: AgentRun): Promise<string> {
+    onEvent({ type: 'model', ...choice });
+    const abortController = new AbortController();
+    signal?.addEventListener('abort', () => abortController.abort(), { once: true });
 
-    for (let turn = 0; turn < opts.maxTurns; turn++) {
-        const stream = client.beta.messages.stream(
-            {
-                model: MODEL,
-                max_tokens: 64000,
-                betas: ['server-side-fallback-2026-07-01'],
-                fallbacks: 'default',
-                cache_control: { type: 'ephemeral' },
-                output_config: { effort: opts.effort },
-                system: opts.system,
-                tools,
-                messages,
-            },
-            { signal: opts.signal },
-        );
-        stream.on('text', delta => opts.onEvent({ type: 'text', delta }));
+    const messages = query({
+        prompt,
+        options: {
+            model: choice.model,
+            effort: choice.effort,
+            includePartialMessages: true,
+            persistSession: false,
+            abortController,
+            env: { ...process.env, CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1' },
+            ...options,
+        },
+    });
 
-        let message: Anthropic.Beta.BetaMessage;
-        try {
-            message = await stream.finalMessage();
-            jsonRetries = 0;
-        } catch (err) {
-            // With eager input streaming an unparseable tool input rejects here; retry only that.
-            if (err instanceof Anthropic.APIError || opts.signal?.aborted || jsonRetries++ >= 2) throw err;
-            continue;
-        }
-
-        if (message.stop_reason === 'refusal') throw new Error('Claude declined this request.');
-        if (message.stop_reason === 'pause_turn') {
-            messages.push({ role: 'assistant', content: message.content });
-            continue;
-        }
-        const toolUses = message.content.filter((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === 'tool_use');
-        if (toolUses.length === 0) return message;
-        if (message.stop_reason === 'max_tokens') throw new Error('A tool call was cut off at max_tokens.');
-
-        messages.push({ role: 'assistant', content: message.content });
-        const results = await Promise.all(toolUses.map(use => execute(byName.get(use.name), use, opts.onEvent)));
-        messages.push({ role: 'user', content: results });
+    for await (const message of messages) {
+        const result = handle(message, onEvent);
+        if (result !== undefined) return result;
     }
-    throw new Error(`Stopped after ${opts.maxTurns} turns without finishing.`);
+    throw new Error('Claude Code exited without a result.');
 }
 
-async function execute(
-    tool: LoopTool | undefined,
-    use: Anthropic.Beta.BetaToolUseBlock,
-    onEvent: LoopOptions['onEvent'],
-): Promise<Anthropic.Beta.BetaToolResultBlockParam> {
-    const fail = (error: string): Anthropic.Beta.BetaToolResultBlockParam => {
-        onEvent({ type: 'tool_error', name: use.name, error });
-        return { type: 'tool_result', tool_use_id: use.id, is_error: true, content: error };
-    };
-    if (!tool) return fail(`Unknown tool: ${use.name}`);
-    const parsed = tool.schema.safeParse(use.input);
-    if (!parsed.success) return fail(`INVALID_INPUT: ${parsed.error.message}`);
-    onEvent({ type: 'tool', name: use.name, input: parsed.data });
-    try {
-        return { type: 'tool_result', tool_use_id: use.id, content: await tool.run(parsed.data) };
-    } catch (err) {
-        return fail(err instanceof Error ? err.message : String(err));
+function handle(message: SDKMessage, onEvent: (e: LoopEvent) => void): string | undefined {
+    if (message.type === 'system' && message.subtype === 'init') {
+        onEvent({
+            type: 'session',
+            auth: message.apiKeySource === 'none' ? 'Claude login' : message.apiKeySource,
+            mcpServers: message.mcp_servers.map(s => ({ name: s.name, status: s.status })),
+        });
+    } else if (message.type === 'stream_event' && message.parent_tool_use_id === null) {
+        const e = message.event;
+        if (e.type === 'content_block_delta' && e.delta.type === 'text_delta') onEvent({ type: 'text', delta: e.delta.text });
+    } else if (message.type === 'assistant') {
+        if (message.error === 'authentication_failed') {
+            throw new Error('Claude Code is not logged in. Run `claude` in a terminal and use /login, then try again.');
+        }
+        for (const block of message.message.content) {
+            if (block.type === 'tool_use' && message.parent_tool_use_id === null) {
+                onEvent({ type: 'tool', name: block.name, input: block.input });
+            }
+        }
+    } else if (message.type === 'result') {
+        if (message.subtype !== 'success' || message.is_error) {
+            const detail = message.subtype === 'success' ? message.result : message.errors.join('; ') || message.subtype;
+            throw new Error(`Claude stopped: ${detail}`);
+        }
+        return message.result;
     }
+    return undefined;
 }
 
-export function finalText(message: Anthropic.Beta.BetaMessage): string {
-    return message.content
-        .filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === 'text')
-        .map(b => b.text)
-        .join('');
+// Strips the `mcp__<server>__` prefix so tool names read naturally in the UI and in policy checks.
+export function bareToolName(name: string): string {
+    return name.replace(/^mcp__.+?__/, '');
 }
 
-export function defineTool<S extends z.ZodType>(tool: LoopTool<S>): LoopTool {
-    return tool as unknown as LoopTool;
+// Explanations may use the user's own MCP servers, but only to look things up. Judged by name
+// because a permission callback does not see the server's readOnly annotation.
+export function isReadOnlyToolName(name: string): boolean {
+    return /^(get|list|search|read|query|fetch|find|view|describe|retrieve|lookup)/i.test(bareToolName(name));
 }

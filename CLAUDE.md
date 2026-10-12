@@ -6,7 +6,7 @@ Read by Claude Code, and by Io's own self-edit agent (`src/self-edit/agent.ts`),
 
 - Node 24 runs the `.ts` files directly through type stripping. There is no build step. Import with the
   `.ts` extension, and use only erasable syntax: no `enum`, no `namespace`, no constructor parameter properties.
-- Dependencies stay minimal: `@anthropic-ai/sdk` and `zod`. The server is `node:http`, and the UI is plain ES modules
+- Dependencies stay minimal: `@anthropic-ai/claude-agent-sdk` and `zod`. The server is `node:http`, and the UI is plain ES modules
   loaded from pinned CDN URLs.
 - `npm run check` runs the typecheck and the tests. It must pass before any commit.
 
@@ -17,7 +17,11 @@ Read by Claude Code, and by Io's own self-edit agent (`src/self-edit/agent.ts`),
 - Pass every piece of HTML built from model or PR text through `DOMPurify.sanitize` in `public/app.js`. Script on
   this page can reach the self-edit endpoint.
 - Never commit PR content, explanations or anything under `data/`. They can quote private code.
-- The model is `claude-opus-5-5` (`MODEL` in `src/agent-loop.ts`), with server-side refusal fallbacks enabled.
+- Io never calls the Claude API from its own process. Every model call is a Claude Code CLI session spawned through
+  the Agent SDK (`src/agent-loop.ts`), using the user's login and MCP servers. Never add `@anthropic-ai/sdk`, an
+  API key, a token or an MCP config of Io's own.
+- The model and effort for each session come from `src/model-choice.ts`: the cheapest model that still produces a
+  trustworthy result. Use CLI aliases (`haiku`, `sonnet`, `opus`), not model IDs.
 - Commits follow Conventional Commits: `type(scope): imperative summary`. The types are
   build, ci, docs, feat, fix, perf, refactor, test.
 - Comments say why, in at most three lines.
