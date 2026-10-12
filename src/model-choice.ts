@@ -2,7 +2,10 @@ import { z } from 'zod';
 
 export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
-// Aliases, not model IDs: the Claude Code CLI resolves them to the current generation.
+// The aliases Io's bundled Claude Code resolves lag behind: "sonnet" gives Sonnet 5 and "haiku"
+// Haiku 4.5. Sessions are sent these explicit ids instead; settings and the UI keep the short names.
+export const MODEL_IDS = { haiku: 'claude-haiku-5-5', sonnet: 'claude-sonnet-5-5', opus: 'claude-opus-5-5' } as const;
+
 export interface ModelChoice {
     model: 'haiku' | 'sonnet' | 'opus';
     effort: Effort;

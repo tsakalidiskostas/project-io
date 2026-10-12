@@ -24,7 +24,8 @@ Read by Claude Code, and by Io's own self-edit agent (`src/self-edit/agent.ts`),
 - Never send MCP `env` or `headers` values to the browser. They often hold tokens. `summariseServer()` is the only
   shape the UI gets.
 - The model and effort for each session come from `src/model-choice.ts`: the cheapest model that still produces a
-  trustworthy result. Use CLI aliases (`haiku`, `sonnet`, `opus`), not model IDs.
+  trustworthy result. Choices use the short names (`haiku`, `sonnet`, `opus`); `MODEL_IDS` maps them to
+  explicit model ids, because the bundled Claude Code's own aliases lag a generation behind.
 - Commits follow Conventional Commits: `type(scope): imperative summary`. The types are
   build, ci, docs, feat, fix, perf, refactor, test.
 - Comments say why, in at most three lines.

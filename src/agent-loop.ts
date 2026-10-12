@@ -1,5 +1,5 @@
 import { query, type Options, type SDKMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
-import type { ModelChoice } from './model-choice.ts';
+import { MODEL_IDS, type ModelChoice } from './model-choice.ts';
 import { ensureIoProfile, ioSessionEnv } from './profile.ts';
 
 export type LoopEvent =
@@ -48,7 +48,7 @@ export async function runAgent({ prompt, choice, options, onEvent, signal, waitF
     const messages = query({
         prompt: waitForMcp ? promptAfterDelay(prompt, finished) : prompt,
         options: {
-            model: choice.model,
+            model: MODEL_IDS[choice.model],
             effort: choice.effort,
             includePartialMessages: true,
             persistSession: false,

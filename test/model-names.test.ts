@@ -17,3 +17,8 @@ test('describes the models a run used', () => {
         'extracted claims with Sonnet 5.5 low, claims vs code with Opus 5.5 medium',
     );
 });
+
+test('every model choice maps to an explicit current model id', async () => {
+    const { MODEL_IDS } = await import('../src/model-choice.ts');
+    assert.deepEqual(MODEL_IDS, { haiku: 'claude-haiku-5-5', sonnet: 'claude-sonnet-5-5', opus: 'claude-opus-5-5' });
+});
