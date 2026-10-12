@@ -26,6 +26,18 @@ Read by Claude Code, and by Io's own self-edit agent (`src/self-edit/agent.ts`),
   build, ci, docs, feat, fix, perf, refactor, test.
 - Comments say why, in at most three lines.
 
+## UI design
+
+`docs/design/HANDOFF.md` is the source of truth for the UI, and `docs/design/tokens.css` holds every value.
+The `reference/*.dc.html` files are visual reference only; never copy their design-tool runtime. The app departs
+from the handoff deliberately in three places:
+
+- The product is called **Io**, not "Intent Review".
+- The chat sidebar ("Change this app") commits straight to `main` once checks pass, then restarts. It does not open
+  a PR, so its footnote and post-change actions describe that instead.
+- The reference screens had `ds/rikstoto/…` design-system links. They were removed and must not come back: this
+  repository is public and unrelated to that design system.
+
 ## Self-edit safety
 
 `scripts/supervisor.ts` and `src/self-edit/guard.ts` are write-protected from the agent. Change them only by hand.

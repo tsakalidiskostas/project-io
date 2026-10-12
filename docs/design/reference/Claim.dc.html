@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Claims and code – PR 1287</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#272822}
+a{color:#66D9EF}a:hover{color:#A6E22E}
+</style>
+</helmet>
+<div style="min-height: 1360px; background: #272822; color: #F8F8F2; font-family: var(--rt-font-body)">
+<main style="max-width: 1280px; margin: 0 auto; padding: 32px 32px 96px; display: flex; flex-direction: column; gap: 28px">
+<section style="display: flex; flex-direction: column; gap: 16px">
+<a href="Main.dc.html" style="font-size: 14px; font-weight: 500; text-decoration: none; align-self: flex-start; padding: 6px 0">← All pull requests</a>
+<h1 style="margin: 0; font-family: var(--rt-font-display); font-weight: 800; font-size: 36px; line-height: 1.15; color: #66D9EF">Retry failed webhook deliveries with backoff</h1>
+<nav aria-label="Report sections" style="display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid #49483E">
+<a href="Report.dc.html" style="padding: 12px 16px; text-decoration: none; font-weight: 500; color: #A6A28C">Overview</a>
+<a href="Claim.dc.html" aria-current="page" style="padding: 12px 16px; text-decoration: none; font-weight: 700; color: #F8F8F2; border-bottom: 3px solid #F92672; margin-bottom: -1px">Claims &amp; code</a>
+<a href="Flow.dc.html" style="padding: 12px 16px; text-decoration: none; font-weight: 500; color: #A6A28C">Behavior flow</a>
+</nav>
+</section>
+
+<div style="display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start">
+<nav aria-label="Claims" style="flex: 1 1 280px; display: flex; flex-direction: column; gap: 8px">
+<span style="font-family: var(--rt-font-condensed); font-weight: 700; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: #E6DB74">Claims</span>
+<sc-for list="{{claimList}}" as="c" hint-placeholder-count="4">
+<button type="button" onClick="{{c.pick}}" aria-pressed="{{c.pressed}}" style="{{c.style}}"><span style="{{c.badgeStyle}}">{{c.verdict}}</span><span style="font-size: 15px; font-weight: 500; line-height: 1.4">{{c.title}}</span></button>
+</sc-for>
+</nav>
+
+<section aria-label="Selected claim" style="flex: 999 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 20px">
+<div style="background: #2F302A; border: 1px solid #49483E; border-radius: 16px; padding: 24px 28px; display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px"><span style="{{sel.badgeStyle}}">{{sel.verdict}}</span><h2 style="margin: 0; font-family: var(--rt-font-display); font-size: 24px; font-weight: 800; color: {{sel.titleColor}}">{{sel.title}}</h2></div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px">
+<div style="background: #1E1F1C; border: 1px solid #49483E; border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; gap: 6px">
+<span style="font-family: var(--rt-font-condensed); font-weight: 700; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: #C4A3FF">Claimed · {{sel.source}}</span>
+<p style="margin: 0; font-size: 16px; line-height: 1.55">{{sel.claimed}}</p>
+</div>
+<div style="background: #1E1F1C; border: 1px solid {{sel.accent}}; border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; gap: 6px">
+<span style="font-family: var(--rt-font-condensed); font-weight: 700; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: {{sel.titleColor}}">What the code does</span>
+<p style="margin: 0; font-size: 16px; line-height: 1.55">{{sel.actual}}</p>
+</div>
+</div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start">
+<div style="flex: 999 1 460px; min-width: 0; background: #1E1F1C; border: 1px solid #49483E; border-radius: 12px; overflow: hidden">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 16px; background: #2F302A; border-bottom: 1px solid #49483E">
+<code style="font-size: 14px; font-weight: 700; color: #E6DB74">{{sel.file}}</code>
+<span style="font-size: 13px; color: #A6A28C">{{sel.range}}</span>
+<a href="#github" style="margin-left: auto; font-size: 14px; font-weight: 500">View on GitHub</a>
+</div>
+<div style="overflow-x: auto">
+<div style="min-width: 560px; padding: 8px 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 14px; line-height: 24px">
+<sc-for list="{{sel.lines}}" as="ln" hint-placeholder-count="10">
+<div style="{{ln.rowStyle}}">
+<span style="width: 44px; flex-shrink: 0; text-align: right; color: #A6A28C; user-select: none">{{ln.n}}</span>
+<span style="width: 20px; flex-shrink: 0; text-align: center; color: #A6E22E; user-select: none">{{ln.mark}}</span>
+<span style="flex-grow: 1; white-space: pre"><sc-for list="{{ln.toks}}" as="t" hint-placeholder-count="4"><span style="{{t.style}}">{{t.v}}</span></sc-for></span>
+<span style="{{ln.chipStyle}}">{{ln.note}}</span>
+</div>
+</sc-for>
+</div>
+</div>
+</div>
+
+<ol aria-label="Explanations" style="flex: 1 1 300px; margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px">
+<sc-for list="{{sel.notes}}" as="nt" hint-placeholder-count="3">
+<li style="background: #2F302A; border: 1px solid #49483E; border-radius: 12px; padding: 16px 18px; display: flex; gap: 12px">
+<span style="flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%; background: #E6DB74; color: #272822; font-weight: 700; font-size: 14px; display: flex; align-items: center; justify-content: center">{{nt.n}}</span>
+<span style="display: flex; flex-direction: column; gap: 4px"><b style="font-size: 14px; font-family: var(--rt-font-condensed); color: #E6DB74">{{nt.where}}</b><span style="font-size: 15px; line-height: 1.55">{{nt.text}}</span></span>
+</li>
+</sc-for>
+</ol>
+</div>
+
+<section aria-label="Suggested PR comment" style="background: #2F302A; border: 1.5px solid #66D9EF; border-radius: 16px; padding: 20px 24px; display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#66D9EF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+<h3 style="margin: 0; font-family: var(--rt-font-display); font-weight: 800; font-size: 20px; color: #66D9EF; flex-grow: 1">Suggested PR comment</h3>
+<span style="{{cmt.kindStyle}}">{{cmt.kind}}</span>
+</div>
+<div role="group" aria-label="Where to post" style="display: flex; flex-wrap: wrap; gap: 8px">
+<button type="button" onClick="{{cmt.pickInline}}" aria-pressed="{{cmt.inlinePressed}}" style="{{cmt.inlineStyle}}">Inline on {{cmt.target}}</button>
+<button type="button" onClick="{{cmt.pickGeneral}}" aria-pressed="{{cmt.generalPressed}}" style="{{cmt.generalStyle}}">General PR comment</button>
+</div>
+<label for="cmt-body" style="font-size: 14px; font-weight: 500; color: #A6A28C">Edit before posting</label>
+<textarea id="cmt-body" rows="4" value="{{cmt.text}}" onChange="{{cmt.onText}}" style="font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 14px; line-height: 1.6; padding: 12px 14px; border-radius: 8px; border: 1.5px solid #49483E; background: #1E1F1C; color: #F8F8F2; resize: vertical; box-sizing: border-box; width: 100%"></textarea>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
+<button type="button" onClick="{{cmt.post}}" style="min-height: 44px; padding: 0 20px; border: 0; border-radius: 999px; background: #A6E22E; color: #272822; font: inherit; font-weight: 700; font-size: 14px; cursor: pointer">Post to PR #1287</button>
+<button type="button" style="min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1.5px solid #49483E; background: transparent; color: #F8F8F2; font: inherit; font-weight: 500; font-size: 14px; cursor: pointer">Copy</button>
+<button type="button" style="min-height: 44px; padding: 0 16px; border-radius: 999px; border: 0; background: transparent; color: #66D9EF; font: inherit; font-weight: 500; font-size: 14px; cursor: pointer">Rewrite</button>
+<sc-if value="{{cmt.posted}}" hint-placeholder-val="{{false}}">
+<span role="status" style="font-size: 14px; font-weight: 500; color: #A6E22E">Posted · {{cmt.where}}</span>
+</sc-if>
+</div>
+</section>
+</section>
+</div>
+</main>
+<dc-import name="ChatPanel" screen="PR #1287 · Claims &amp; code" hint-size="0px,0px"></dc-import>
+
+<nav aria-label="App" style="position: fixed; right: 20px; bottom: 20px; display: flex; flex-direction: column; gap: 6px; padding: 6px; background: #1E1F1C; border: 1px solid #49483E; border-radius: 999px; box-shadow: 0 8px 20px rgba(0,0,0,0.45); z-index: 10">
+<a href="Main.dc.html" aria-label="All pull requests" title="All pull requests" style="width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #66D9EF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M3 6h.01"></path><path d="M3 12h.01"></path><path d="M3 18h.01"></path></svg></a>
+<a href="Main.dc.html#pr-url" aria-label="Analyze a new PR" title="Analyze a new PR" style="width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #A6E22E"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg></a>
+<a href="#settings" aria-label="Settings: GitHub and Linear connections" title="Settings: GitHub and Linear connections" style="width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #F8F8F2"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></a>
+</nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1360}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { picked: 'c2' }; }
+  tokenize(text) {
+    var KW = { 'export': 1, 'async': 1, 'function': 1, 'for': 1, 'let': 1, 'const': 1, 'await': 1, 'if': 1, 'return': 1, 'break': 1 };
+    var toks = text.match(/\s+|[A-Za-z_][A-Za-z0-9_]*|\d+|[^\sA-Za-z0-9_]/g) || [];
+    var out = [];
+    for (var i = 0; i < toks.length; i++) {
+      var t = toks[i], c = '#F8F8F2', extra = '';
+      var next = '', prev = '';
+      for (var j = i + 1; j < toks.length; j++) { if (!/^\s+$/.test(toks[j])) { next = toks[j]; break; } }
+      for (var k = i - 1; k >= 0; k--) { if (!/^\s+$/.test(toks[k])) { prev = toks[k]; break; } }
+      if (KW[t]) c = '#F92672';
+      else if (t === 'true' || t === 'false' || /^\d+$/.test(t) || /^[A-Z][A-Z0-9_]+$/.test(t)) c = '#AE81FF';
+      else if (/^[A-Za-z_]/.test(t) && next === '(') c = '#A6E22E';
+      else if (/^[A-Z][a-z]/.test(t) || (prev === ':' && /^[a-z]/.test(t))) { c = '#66D9EF'; extra = 'font-style: italic; '; }
+      else if (/^[<>=!&|+\-*\/]$/.test(t)) c = '#F92672';
+      out.push({ v: t, style: extra + 'color: ' + c });
+    }
+    return out;
+  }
+  renderVals() {
+    var self = this;
+    var worker = [
+      [56, '+', 'export async function deliverWithRetry(job: DeliveryJob) {'],
+      [57, '+', '  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {'],
+      [58, '+', '    const started = Date.now();'],
+      [59, '+', '    const res = await send(job);'],
+      [60, '+', ''],
+      [61, '+', '    await logAttempt(job.id, attempt, res, Date.now() - started);'],
+      [62, '+', '    if (res.ok) return res;'],
+      [63, '+', '    if (!isRetryable(res)) break;'],
+      [64, '+', '    await sleep(backoff(attempt));'],
+      [65, '+', '  }'],
+      [66, '+', '  await deadLetter.push(job);'],
+      [67, '+', '}']
+    ];
+    var retryable = [
+      [8, '+', 'export function isRetryable(res: DeliveryResult): boolean {'],
+      [9, '+', '  if (res.networkError) return true;'],
+      [10, '+', '  const s = res.status;'],
+      [11, '+', '  if (s >= 500) return true;'],
+      [12, '+', '  if (s >= 400 && s < 500) return false;'],
+      [13, '+', '  return false;'],
+      [14, '+', '}']
+    ];
+    var pill = 'display: inline-block; align-self: flex-start; padding: 4px 10px; border-radius: 999px; font-family: Roboto Condensed, Roboto, sans-serif; font-weight: 700; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; ';
+    var look = {
+      Delivered: { badge: pill + 'background: rgba(166,226,46,0.14); color: #A6E22E', title: '#A6E22E', accent: 'rgba(166,226,46,0.45)' },
+      Partial: { badge: pill + 'background: rgba(253,151,31,0.16); color: #FD971F', title: '#FD971F', accent: 'rgba(253,151,31,0.5)' },
+      Missing: { badge: pill + 'background: rgba(249,38,114,0.16); color: #FF7AA8', title: '#FF7AA8', accent: 'rgba(249,38,114,0.55)' }
+    };
+    var claims = [
+      { id: 'c1', verdict: 'Delivered', title: 'Retry up to 5 times with exponential backoff',
+        source: 'ENG-412 #1 · PR description', claimed: 'Retry failed deliveries up to 5 times with exponential backoff.',
+        actual: 'Loops up to MAX_ATTEMPTS (5) and sleeps for backoff(attempt) between tries: 1 s doubling to a 60 s cap, with jitter.',
+        file: 'src/delivery/worker.ts', range: 'Lines 56–67 · added', code: worker, hl: { 57: '1', 64: '2' },
+        notes: [ { n: '1', where: 'Line 57', text: 'The loop is bounded by MAX_ATTEMPTS, set to 5 in delivery/config.ts. Matches the claim.' },
+                 { n: '2', where: 'Line 64', text: 'Waits between attempts. backoff() doubles from 1 s and caps at 60 s, so the five attempts span about 15 s plus jitter.' } ] },
+      { id: 'c2', verdict: 'Partial', title: 'Don’t retry 4xx, except 429',
+        source: 'ENG-412 #2', claimed: 'Do not retry 4xx responses, except 429.',
+        actual: 'Every status from 400 to 499 returns false, so 429 is treated as permanent and goes straight to the dead-letter queue.',
+        file: 'src/delivery/retryable.ts', range: 'Lines 8–14 · added', code: retryable, hl: { 11: '1', 12: '2' },
+        notes: [ { n: '1', where: 'Lines 9–11', text: 'Network errors and 5xx responses are retried. This part matches the issue.' },
+                 { n: '2', where: 'Line 12', text: 'This catches 429 along with every other 4xx. Checking for 429 before this line would match what the issue asks for.' } ] },
+      { id: 'c3', verdict: 'Delivered', title: 'Record every attempt in the delivery log',
+        source: 'ENG-412 #3 · PR description', claimed: 'Record every attempt in the delivery log.',
+        actual: 'Every attempt, successful or not, writes a row to delivery_attempts before deciding whether to retry.',
+        file: 'src/delivery/worker.ts', range: 'Lines 56–67 · added', code: worker, hl: { 61: '1' },
+        notes: [ { n: '1', where: 'Line 61', text: 'Runs before the ok check, so successes and failures are both logged, with attempt number and latency.' } ] },
+      { id: 'c4', verdict: 'Missing', title: 'Alert on-call when retries are exhausted',
+        source: 'ENG-412 #4', claimed: 'Alert the on-call channel when a delivery exhausts its retries.',
+        actual: 'After the last attempt the job is pushed to the dead-letter queue and nothing else happens. No alert or metric anywhere in the diff.',
+        file: 'src/delivery/worker.ts', range: 'Lines 56–67 · added', code: worker, hl: { 66: '1' },
+        notes: [ { n: '1', where: 'Line 66', text: 'The natural place for the alert is right after the dead-letter push. The diff never calls the alerting client.' } ] }
+    ];
+    var sel = claims.filter(function (c) { return c.id === self.state.picked; })[0];
+    var lines = sel.code.map(function (l) {
+      var note = sel.hl[l[0]] || '';
+      return { n: l[0], mark: l[1], toks: self.tokenize(l[2]), note: note,
+        rowStyle: 'display: flex; gap: 8px; padding: 0 16px 0 0; align-items: center; min-height: 24px; ' + (note ? 'background: #49451F; box-shadow: inset 3px 0 0 #E6DB74' : 'background: #26301C'),
+        chipStyle: note ? 'flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; background: #E6DB74; color: #272822; font-family: Roboto, sans-serif; font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center' : 'display: none' };
+    });
+    var claimList = claims.map(function (c) {
+      var on = c.id === self.state.picked;
+      return { verdict: c.verdict, badgeStyle: look[c.verdict].badge, title: c.title, pressed: on ? 'true' : 'false',
+        pick: function () { self.setState({ picked: c.id }); },
+        style: 'display: flex; flex-direction: column; align-items: flex-start; gap: 8px; text-align: left; font: inherit; color: #F8F8F2; cursor: pointer; padding: 14px 16px; border-radius: 12px; min-height: 44px; ' + (on ? 'background: #2F302A; border: 2px solid #66D9EF' : 'background: transparent; border: 2px solid transparent') };
+    });
+    var lk = look[sel.verdict];
+    var drafts = this.state.drafts || {}, posted = this.state.posted || {}, place = this.state.place || {};
+    var sug = {
+      c1: { kind: 'Comment · optional', req: false, target: 'worker.ts line 64', text: 'Backoff matches ENG-412 #1. Minor: could MAX_ATTEMPTS live next to the backoff settings so both are tuned in one place?' },
+      c2: { kind: 'Request changes', req: true, target: 'retryable.ts line 12', text: 'ENG-412 asks us to retry 429, but this branch returns false for every 4xx, so rate-limited deliveries go straight to the dead-letter queue. Could we check for 429 before this line and treat it as retryable, ideally honoring Retry-After?' },
+      c3: { kind: 'Comment · optional', req: false, target: 'worker.ts line 61', text: 'Logging before the ok check means successes are recorded too, which is what ENG-412 #3 asks for.' },
+      c4: { kind: 'Request changes', req: true, target: 'worker.ts line 66', text: 'ENG-412 #4 asks for an on-call alert when retries are exhausted, but nothing is emitted after deadLetter.push(job). Is that planned for a follow-up PR, or should it land here?' }
+    }[sel.id];
+    var id = sel.id, inline = place[id] !== 'general';
+    var chip = 'min-height: 44px; padding: 0 16px; border-radius: 999px; font: inherit; font-weight: 500; font-size: 14px; cursor: pointer; ';
+    var cmt = {
+      kind: sug.kind, target: sug.target,
+      kindStyle: pill + (sug.req ? 'background: rgba(249,38,114,0.16); color: #FF7AA8' : 'background: rgba(102,217,239,0.14); color: #66D9EF'),
+      text: drafts[id] != null ? drafts[id] : sug.text,
+      onText: function (e) { var d = Object.assign({}, self.state.drafts || {}); d[id] = e.target.value; self.setState({ drafts: d }); },
+      inlinePressed: inline ? 'true' : 'false', generalPressed: inline ? 'false' : 'true',
+      inlineStyle: chip + (inline ? 'background: #66D9EF; color: #272822; border: 1.5px solid #66D9EF' : 'background: transparent; color: #F8F8F2; border: 1.5px solid #49483E'),
+      generalStyle: chip + (!inline ? 'background: #66D9EF; color: #272822; border: 1.5px solid #66D9EF' : 'background: transparent; color: #F8F8F2; border: 1.5px solid #49483E'),
+      pickInline: function () { var p = Object.assign({}, self.state.place || {}); p[id] = 'inline'; self.setState({ place: p }); },
+      pickGeneral: function () { var p = Object.assign({}, self.state.place || {}); p[id] = 'general'; self.setState({ place: p }); },
+      post: function () { var p = Object.assign({}, self.state.posted || {}); p[id] = true; self.setState({ posted: p }); },
+      posted: !!posted[id], where: inline ? sug.target : 'PR conversation'
+    };
+    return { cmt: cmt, claimList: claimList, sel: Object.assign({}, sel, { lines: lines, badgeStyle: lk.badge, titleColor: lk.title, accent: lk.accent }) };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PR inbox</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#272822}
+a{color:#66D9EF}a:hover{color:#A6E22E}
+</style>
+</helmet>
+<div style="min-height: 1000px; background: #272822; color: #F8F8F2; font-family: var(--rt-font-body)">
+<main style="max-width: 1280px; margin: 0 auto; padding: 32px 32px 96px; display: flex; flex-direction: column; gap: 28px">
+<div style="display: flex; align-items: center; gap: 8px; font-family: var(--rt-font-condensed); font-weight: 700; font-size: 14px; letter-spacing: .08em; text-transform: uppercase; color: #E6DB74">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#E6DB74" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="2.5"></circle><circle cx="18" cy="18" r="2.5"></circle><path d="M6 8.5v4a5 5 0 0 0 5 5h4.5"></path><path d="M14 5h4v4"></path><path d="M18 5l-6 6"></path></svg>
+<span>Intent Review</span>
+</div>
+
+<section style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 24px">
+<div style="flex: 999 1 420px; display: flex; flex-direction: column; gap: 8px">
+<h1 style="margin: 0; font-family: var(--rt-font-display); font-weight: 800; font-size: 40px; line-height: 1.1; color: #66D9EF">Pull requests</h1>
+<p style="margin: 0; font-size: 18px; color: #A6A28C">Every PR checked against what its Linear issue and description said it would do.</p>
+</div>
+<div style="flex: 1 1 460px; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px">
+<div style="flex: 1 1 280px; display: flex; flex-direction: column; gap: 6px">
+<label for="pr-url" style="font-weight: 500; font-size: 14px; color: #A6E22E">Analyze a PR</label>
+<input id="pr-url" type="url" placeholder="Paste a GitHub PR or Linear issue URL" style="font: inherit; font-size: 16px; padding: 12px 14px; border-radius: 8px; border: 1.5px solid #49483E; background: #1E1F1C; color: #F8F8F2; box-sizing: border-box; width: 100%">
+</div>
+<button type="button" style="min-height: 48px; padding: 0 24px; border: 0; border-radius: 999px; background: #A6E22E; color: #272822; font: inherit; font-weight: 700; cursor: pointer">Analyze</button>
+</div>
+</section>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+<nav aria-label="Filter" style="flex: 1 1 200px; max-width: 240px; display: flex; flex-direction: column; gap: 4px">
+<span style="font-family: var(--rt-font-condensed); font-weight: 700; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: #E6DB74; padding: 0 12px 8px">Filter</span>
+<sc-for list="{{chips}}" as="chip" hint-placeholder-count="4">
+<button type="button" onClick="{{chip.pick}}" aria-pressed="{{chip.pressed}}" style="{{chip.style}}">
+<span style="width: 20px; height: 20px; flex-shrink: 0; display: flex; color: {{chip.iconColor}}">
+<sc-if value="{{chip.isAll}}" hint-placeholder-val="{{false}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2 2 7l10 5 10-5-10-5z"></path><path d="m2 17 10 5 10-5"></path><path d="m2 12 10 5 10-5"></path></svg></sc-if>
+<sc-if value="{{chip.isAttention}}" hint-placeholder-val="{{false}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg></sc-if>
+<sc-if value="{{chip.isAligned}}" hint-placeholder-val="{{false}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="m8 12 3 3 5-6"></path></svg></sc-if>
+<sc-if value="{{chip.isNolink}}" hint-placeholder-val="{{false}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 17H7A5 5 0 0 1 7 7"></path><path d="M15 7h2a5 5 0 0 1 4 8"></path><path d="M8 12h4"></path><path d="m2 2 20 20"></path></svg></sc-if>
+</span>
+<span style="flex-grow: 1; text-align: left">{{chip.label}}</span>
+<span style="font-family: var(--rt-font-condensed); font-weight: 700; font-size: 14px; color: {{chip.countColor}}">{{chip.count}}</span>
+</button>
+</sc-for>
+</nav>
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+<section aria-label="Pull requests" style="background: #2F302A; border: 1px solid #49483E; border-radius: 16px; overflow: hidden">
+<div style="display: flex; flex-wrap: wrap; gap: 16px; padding: 14px 24px; background: #1E1F1C; border-bottom: 1px solid #49483E; font-family: var(--rt-font-condensed); font-weight: 700; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: #A6A28C">
+<span style="flex: 3 1 320px">Pull request</span>
+<span style="flex: 1 1 140px">Linked issue</span>
+<span style="flex: 2 1 220px">Claims delivered</span>
+<span style="flex: 1 1 120px">Unclaimed changes</span>
+<span style="flex: 1 1 160px">Status</span>
+</div>
+<sc-for list="{{rows}}" as="row" hint-placeholder-count="5">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 20px 24px; border-bottom: 1px solid #3E3D32">
+<div style="flex: 3 1 320px; display: flex; flex-direction: column; gap: 4px; min-width: 0">
+<a href="Report.dc.html" style="font-weight: 700; font-size: 17px; color: #F8F8F2; text-decoration: none">{{row.title}}</a>
+<span style="font-family: var(--rt-font-condensed); font-size: 14px; color: #A6A28C">{{row.repo}} · #{{row.num}} · {{row.files}} files changed</span>
+</div>
+<div style="flex: 1 1 140px; font-family: var(--rt-font-condensed); font-size: 15px; font-weight: 700; color: {{row.issueColor}}">{{row.issue}}</div>
+<div style="flex: 2 1 220px; display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; gap: 3px; height: 10px" aria-hidden="true">
+<span style="{{row.segDelivered}}"></span>
+<span style="{{row.segPartial}}"></span>
+<span style="{{row.segMissing}}"></span>
+</div>
+<span style="font-size: 14px; color: #A6A28C">{{row.coverage}}</span>
+</div>
+<div style="flex: 1 1 120px; font-size: 15px"><b style="color: #C4A3FF">{{row.unclaimed}}</b> <span style="color: #A6A28C">{{row.unclaimedLabel}}</span></div>
+<div style="flex: 1 1 160px"><span style="{{row.badgeStyle}}">{{row.status}}</span></div>
+</div>
+</sc-for>
+<sc-if value="{{empty}}" hint-placeholder-val="{{false}}">
+<p style="margin: 0; padding: 32px 24px; color: #A6A28C">No pull requests match this filter.</p>
+</sc-if>
+</section>
+
+<p style="margin: 0; font-size: 14px; color: #A6A28C">Legend: <span style="color: #A6E22E; font-weight: 700">■ delivered</span> · <span style="color: #FD971F; font-weight: 700">■ partial</span> · <span style="color: #FF7AA8; font-weight: 700">□ missing</span>. Sample data shown.</p>
+</div>
+</div>
+</main>
+<dc-import name="ChatPanel" screen="Pull requests" hint-size="0px,0px"></dc-import>
+
+<nav aria-label="App" style="position: fixed; right: 20px; bottom: 20px; display: flex; flex-direction: column; gap: 6px; padding: 6px; background: #1E1F1C; border: 1px solid #49483E; border-radius: 999px; box-shadow: 0 8px 20px rgba(0,0,0,0.45); z-index: 10">
+<a href="Main.dc.html" aria-current="page" aria-label="All pull requests" title="All pull requests" style="width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: #3E3D32; color: #66D9EF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M3 6h.01"></path><path d="M3 12h.01"></path><path d="M3 18h.01"></path></svg></a>
+<a href="#pr-url" aria-label="Analyze a new PR" title="Analyze a new PR" style="width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #A6E22E"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg></a>
+<a href="#settings" aria-label="Settings: GitHub and Linear connections" title="Settings: GitHub and Linear connections" style="width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #F8F8F2"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></a>
+</nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { filter: 'all' }; }
+  seg(n, kind) {
+    var base = 'border-radius: 2px; box-sizing: border-box; flex: ' + (n || 0) + ' 1 0; ';
+    if (!n) return base + 'display: none';
+    if (kind === 'd') return base + 'background: #A6E22E';
+    if (kind === 'p') return base + 'background: #FD971F';
+    return base + 'background: transparent; border: 1.5px solid #F92672';
+  }
+  renderVals() {
+    var self = this;
+    var data = [
+      { num: 1287, title: 'Retry failed webhook deliveries with backoff', repo: 'webhooks-service', files: 9, issue: 'ENG-412', d: 2, p: 1, m: 1, unclaimed: 2, status: 'Needs attention', kind: 'attention' },
+      { num: 1291, title: 'Paginate audit log export', repo: 'admin-api', files: 4, issue: 'ENG-398', d: 3, p: 0, m: 0, unclaimed: 0, status: 'Aligned', kind: 'aligned' },
+      { num: 1279, title: 'Move session store to Redis 7', repo: 'auth-service', files: 14, issue: 'ENG-377', d: 4, p: 1, m: 0, unclaimed: 1, status: 'Review', kind: 'attention' },
+      { num: 1294, title: 'Bump eslint and fix lint warnings', repo: 'web-client', files: 31, issue: 'None linked', d: 1, p: 0, m: 0, unclaimed: 6, status: 'No linked issue', kind: 'nolink' },
+      { num: 1283, title: 'Feature flag for new onboarding copy', repo: 'web-client', files: 3, issue: 'ENG-405', d: 2, p: 0, m: 0, unclaimed: 0, status: 'Aligned', kind: 'aligned' }
+    ];
+    var pill = 'display: inline-block; padding: 4px 10px; border-radius: 999px; font-family: Roboto Condensed, Roboto, sans-serif; font-weight: 700; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; ';
+    var badge = {
+      'Needs attention': pill + 'background: rgba(249,38,114,0.16); color: #FF7AA8',
+      'Aligned': pill + 'background: rgba(166,226,46,0.14); color: #A6E22E',
+      'Review': pill + 'background: rgba(253,151,31,0.16); color: #FD971F',
+      'No linked issue': pill + 'background: #3E3D32; color: #F8F8F2'
+    };
+    var f = this.state.filter;
+    var rows = data.filter(function (r) { return f === 'all' || r.kind === f; }).map(function (r) {
+      var total = r.d + r.p + r.m;
+      return Object.assign({}, r, {
+        segDelivered: self.seg(r.d, 'd'), segPartial: self.seg(r.p, 'p'), segMissing: self.seg(r.m, 'm'),
+        coverage: r.d + ' of ' + total + ' delivered' + (r.p ? ', ' + r.p + ' partial' : '') + (r.m ? ', ' + r.m + ' missing' : ''),
+        unclaimedLabel: r.unclaimed === 1 ? 'change' : 'changes',
+        badgeStyle: badge[r.status], issueColor: r.kind === 'nolink' ? '#A6A28C' : '#C4A3FF'
+      });
+    });
+    var chipDefs = [['all', 'All'], ['attention', 'Needs attention'], ['aligned', 'Aligned'], ['nolink', 'No linked issue']];
+    var iconColors = { all: '#66D9EF', attention: '#FF7AA8', aligned: '#A6E22E', nolink: '#C4A3FF' };
+    var chips = chipDefs.map(function (c) {
+      var on = f === c[0];
+      var count = data.filter(function (r) { return c[0] === 'all' || r.kind === c[0]; }).length;
+      return { label: c[1], count: count, pressed: on ? 'true' : 'false', pick: function () { self.setState({ filter: c[0] }); },
+        isAll: c[0] === 'all', isAttention: c[0] === 'attention', isAligned: c[0] === 'aligned', isNolink: c[0] === 'nolink',
+        iconColor: on ? '#272822' : iconColors[c[0]], countColor: on ? '#272822' : '#A6A28C',
+        style: 'display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 10px; font: inherit; font-weight: 500; font-size: 15px; cursor: pointer; border: 0; ' + (on ? 'background: #66D9EF; color: #272822' : 'background: transparent; color: #F8F8F2') };
+    });
+    return { rows: rows, chips: chips, empty: rows.length === 0 };
+  }
+}
+</script>
+</body>
+</html>

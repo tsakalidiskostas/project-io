@@ -1,0 +1,71 @@
+/* Intent Review — design tokens (Monokai dark)
+   Fonts: load Montserrat (700, 800), Roboto (300, 400, 500, 700), Roboto Condensed (400, 700) from Google Fonts. */
+:root {
+  /* Surfaces */
+  --ir-bg:            #272822; /* page background */
+  --ir-surface:       #2F302A; /* cards, panels */
+  --ir-surface-sunk:  #1E1F1C; /* inputs, code blocks, table header, floating nav, chat sidebar */
+  --ir-surface-raised:#3E3D32; /* active nav item, user chat bubble, decision nodes */
+  --ir-border:        #49483E;
+  --ir-divider:       #3E3D32;
+
+  /* Text */
+  --ir-text:          #F8F8F2;
+  --ir-text-muted:    #A6A28C; /* secondary text, captions, line numbers (≥4.5:1 on bg and surface) */
+  --ir-text-on-accent:#272822;
+
+  /* Monokai accents */
+  --ir-cyan:   #66D9EF; /* page titles, links, active filter, selected claim */
+  --ir-green:  #A6E22E; /* delivered, primary actions (Analyze, Post) */
+  --ir-orange: #FD971F; /* partial, chat/Claude accent */
+  --ir-pink:   #F92672; /* missing (borders, fills), keywords, active tab underline */
+  --ir-pink-text:   #FF7AA8; /* missing — use for small text */
+  --ir-purple: #AE81FF; /* unclaimed (borders), numbers/constants */
+  --ir-purple-text: #C4A3FF; /* unclaimed / Linear — use for small text */
+  --ir-yellow: #E6DB74; /* code annotations, pointing mode, section labels */
+
+  /* Verdict tints (badge backgrounds) */
+  --ir-delivered-tint: rgba(166,226,46,0.14);
+  --ir-partial-tint:   rgba(253,151,31,0.16);
+  --ir-missing-tint:   rgba(249,38,114,0.16);
+  --ir-cyan-tint:      rgba(102,217,239,0.14);
+  --ir-linear-tint:    rgba(174,129,255,0.18);
+
+  /* Code viewer */
+  --ir-code-added:     #26301C; /* added diff line */
+  --ir-code-key:       #49451F; /* key line highlighted by an annotation (+ 3px inset yellow bar) */
+
+  /* Type */
+  --ir-font-display: "Montserrat", "Helvetica Neue", Arial, sans-serif;  /* titles, 800 */
+  --ir-font-body:    "Roboto", "Helvetica Neue", Arial, sans-serif;
+  --ir-font-label:   "Roboto Condensed", "Roboto", sans-serif;           /* uppercase labels, meta, badges */
+  --ir-font-code:    ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --ir-fs-h1: 40px;  /* inbox; 36px on PR screens */
+  --ir-fs-h2: 22px;
+  --ir-fs-h3: 18px;
+  --ir-fs-body: 15px;
+  --ir-fs-meta: 14px;
+  --ir-fs-label: 13px; /* uppercase, letter-spacing .08em */
+  --ir-fs-badge: 12px; /* uppercase, letter-spacing .08em, bold */
+  --ir-fs-code: 14px;  /* line-height 24px */
+
+  /* Spacing (4-pt grid) */
+  --ir-space-1: 4px;  --ir-space-2: 8px;  --ir-space-3: 12px; --ir-space-4: 16px;
+  --ir-space-5: 20px; --ir-space-6: 24px; --ir-space-7: 32px;
+
+  /* Radii */
+  --ir-radius-chip: 4px;   /* inline code paths */
+  --ir-radius-input: 8px;
+  --ir-radius-card: 12px;
+  --ir-radius-panel: 16px;
+  --ir-radius-pill: 999px;
+
+  /* Layout */
+  --ir-content-max: 1280px;
+  --ir-page-pad: 32px;
+  --ir-chat-width: 400px;
+  --ir-touch: 44px;   /* minimum hit target */
+
+  --ir-shadow-float: 0 8px 20px rgba(0,0,0,0.45);
+}

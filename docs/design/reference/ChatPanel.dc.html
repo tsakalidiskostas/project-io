@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Claude chat sidebar</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div data-chat-panel="root" style="position: fixed; inset: 0; pointer-events: none; z-index: 30; font-family: var(--rt-font-body); color: #F8F8F2">
+
+<sc-if value="{{showLauncher}}" hint-placeholder-val="{{false}}">
+<button type="button" data-chat-panel="launcher" onClick="{{open}}" aria-label="Ask Claude to change this app" title="Ask Claude to change this app" style="pointer-events: auto; position: absolute; top: 20px; right: 20px; width: 48px; height: 48px; border-radius: 50%; border: 1px solid #49483E; background: #1E1F1C; color: #FD971F; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 8px 20px rgba(0,0,0,0.45)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path><path d="M8 9h8"></path><path d="M8 13h5"></path></svg></button>
+</sc-if>
+
+<sc-if value="{{showHover}}" hint-placeholder-val="{{false}}">
+<div aria-hidden="true" style="{{hoverStyle}}"></div>
+</sc-if>
+<sc-if value="{{showPin}}" hint-placeholder-val="{{false}}">
+<div aria-hidden="true" style="{{pinStyle}}"></div>
+</sc-if>
+
+<sc-if value="{{picking}}" hint-placeholder-val="{{false}}">
+<div data-chat-panel="banner" role="status" style="pointer-events: auto; position: absolute; top: 20px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 18px; border-radius: 999px; background: #E6DB74; color: #272822; font-weight: 500; font-size: 15px; box-shadow: 0 8px 20px rgba(0,0,0,0.45)">
+<span>Click any part of the app to point at it</span>
+<button type="button" onClick="{{cancelPick}}" style="min-height: 36px; padding: 0 14px; border-radius: 999px; border: 0; background: #272822; color: #E6DB74; font: inherit; font-weight: 700; font-size: 14px; cursor: pointer">Cancel</button>
+</div>
+</sc-if>
+
+<sc-if value="{{isOpen}}" hint-placeholder-val="{{true}}">
+<aside data-chat-panel="panel" aria-label="Claude" style="pointer-events: auto; position: absolute; top: 0; right: 0; bottom: 0; width: 400px; max-width: 100%; box-sizing: border-box; background: #1E1F1C; border-left: 1px solid #49483E; box-shadow: -12px 0 32px rgba(0,0,0,0.4); display: flex; flex-direction: column">
+<div style="display: flex; align-items: center; gap: 10px; padding: 16px 16px 12px 20px; border-bottom: 1px solid #3E3D32">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FD971F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v4"></path><path d="M12 17v4"></path><path d="M3 12h4"></path><path d="M17 12h4"></path><path d="m5.6 5.6 2.8 2.8"></path><path d="m15.6 15.6 2.8 2.8"></path><path d="m5.6 18.4 2.8-2.8"></path><path d="m15.6 8.4 2.8-2.8"></path></svg>
+<div style="display: flex; flex-direction: column; flex-grow: 1">
+<h2 style="margin: 0; font-family: var(--rt-font-display); font-weight: 800; font-size: 18px; color: #FD971F">Change this app</h2>
+<span style="font-size: 13px; color: #A6A28C">On: {{screen}}</span>
+</div>
+<button type="button" onClick="{{close}}" aria-label="Close chat" style="width: 44px; height: 44px; border-radius: 50%; border: 0; background: transparent; color: #F8F8F2; display: flex; align-items: center; justify-content: center; cursor: pointer"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button>
+</div>
+
+<div aria-live="polite" style="flex-grow: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 14px">
+<sc-for list="{{messages}}" as="m" hint-placeholder-count="3">
+<div style="{{m.wrapStyle}}">
+<sc-if value="{{m.hasPin}}" hint-placeholder-val="{{false}}">
+<span style="align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: rgba(230,219,116,0.14); color: #E6DB74; font-size: 12px; font-weight: 700"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="3"></circle></svg>{{m.pin}}</span>
+</sc-if>
+<span style="font-size: 15px; line-height: 1.55; white-space: pre-line">{{m.text}}</span>
+<sc-if value="{{m.hasActions}}" hint-placeholder-val="{{false}}">
+<span style="display: flex; flex-wrap: wrap; gap: 8px; padding-top: 4px">
+<button type="button" style="min-height: 36px; padding: 0 14px; border-radius: 999px; border: 0; background: #A6E22E; color: #272822; font: inherit; font-weight: 700; font-size: 13px; cursor: pointer">Open PR</button>
+<button type="button" style="min-height: 36px; padding: 0 14px; border-radius: 999px; border: 1.5px solid #49483E; background: transparent; color: #F8F8F2; font: inherit; font-weight: 500; font-size: 13px; cursor: pointer">View diff</button>
+<button type="button" style="min-height: 36px; padding: 0 14px; border-radius: 999px; border: 0; background: transparent; color: #66D9EF; font: inherit; font-weight: 500; font-size: 13px; cursor: pointer">Review it here</button>
+</span>
+</sc-if>
+</div>
+</sc-for>
+</div>
+
+<div style="border-top: 1px solid #3E3D32; padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 10px">
+<sc-if value="{{hasPin}}" hint-placeholder-val="{{false}}">
+<div style="display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 12px; border-radius: 10px; background: rgba(230,219,116,0.12); border: 1px dashed #E6DB74">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#E6DB74" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="3"></circle></svg>
+<span style="flex-grow: 1; font-size: 13px; color: #E6DB74; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{pinLabel}}</span>
+<button type="button" onClick="{{clearPin}}" aria-label="Remove pointed element" style="width: 32px; height: 32px; border-radius: 50%; border: 0; background: transparent; color: #E6DB74; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button>
+</div>
+</sc-if>
+<label for="chat-input" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Message Claude</label>
+<textarea id="chat-input" rows="3" value="{{draft}}" onChange="{{onDraft}}" placeholder="Describe a change, or point at something first" style="font: inherit; font-size: 15px; line-height: 1.5; padding: 10px 12px; border-radius: 10px; border: 1.5px solid #49483E; background: #272822; color: #F8F8F2; resize: none; box-sizing: border-box; width: 100%"></textarea>
+<div style="display: flex; align-items: center; gap: 8px">
+<button type="button" onClick="{{startPick}}" aria-pressed="{{pickPressed}}" style="{{pickStyle}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="3"></circle><path d="M12 1v4"></path><path d="M12 19v4"></path><path d="M1 12h4"></path><path d="M19 12h4"></path></svg>Point at it</button>
+<span style="flex-grow: 1"></span>
+<button type="button" onClick="{{send}}" aria-label="Send" style="width: 44px; height: 44px; border-radius: 50%; border: 0; background: #FD971F; color: #272822; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"></path><path d="m5 12 7-7 7 7"></path></svg></button>
+</div>
+<span style="font-size: 12px; color: #A6A28C">Changes are made in the app's repo and opened as a PR, which this app then reviews.</span>
+</div>
+</aside>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"screen":{"editor":null},"$preview":{"width":440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = {
+      open: !props.screen, picking: false, hover: null, pin: null, draft: '',
+      messages: [
+        { from: 'claude', text: 'Ask me to change anything in Intent Review. Point at a part of the screen to show me exactly what you mean.' },
+        { from: 'user', pin: 'Coverage bar in "Pull requests"', text: 'The missing segment is too easy to miss. Make it stand out more.' },
+        { from: 'claude', text: 'Done. Missing segments now use a 2px pink outline with a small count label, and the legend matches.\n\nI opened intent-review#58 with the change.', actions: true }
+      ]
+    };
+    this.onMove = this.onMove.bind(this);
+    this.onClickCapture = this.onClickCapture.bind(this);
+  }
+  isOwn(el) { return !!(el && el.closest && el.closest('[data-chat-panel]') && el.closest('[data-chat-panel]').getAttribute('data-chat-panel') !== 'root'); }
+  describe(el) {
+    var name = el.getAttribute('aria-label') || (el.textContent || '').replace(/\s+/g, ' ').trim();
+    if (!name) name = el.tagName.toLowerCase();
+    if (name.length > 40) name = name.slice(0, 40) + '…';
+    var sec = el.closest('section[aria-label], nav[aria-label], aside[aria-label]');
+    return '"' + name + '"' + (sec ? ' in ' + sec.getAttribute('aria-label') : '');
+  }
+  rectOf(el) { var r = el.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; }
+  onMove(e) {
+    var el = e.target;
+    if (this.isOwn(el)) { if (this.state.hover) this.setState({ hover: null }); return; }
+    if (el === this._last) return;
+    this._last = el;
+    this.setState({ hover: this.rectOf(el) });
+  }
+  onClickCapture(e) {
+    var el = e.target;
+    if (this.isOwn(el)) return;
+    e.preventDefault(); e.stopPropagation();
+    this.setState({ picking: false, hover: null, open: true, pin: { label: this.describe(el), rect: this.rectOf(el) } });
+  }
+  componentDidUpdate(prevProps, prevState) {
+    if (this.state.picking && !prevState.picking) {
+      document.addEventListener('mousemove', this.onMove, true);
+      document.addEventListener('click', this.onClickCapture, true);
+    }
+    if (!this.state.picking && prevState.picking) {
+      document.removeEventListener('mousemove', this.onMove, true);
+      document.removeEventListener('click', this.onClickCapture, true);
+      this._last = null;
+    }
+  }
+  componentWillUnmount() {
+    document.removeEventListener('mousemove', this.onMove, true);
+    document.removeEventListener('click', this.onClickCapture, true);
+  }
+  box(r, color, dashed) {
+    return 'position: fixed; left: ' + (r.x - 3) + 'px; top: ' + (r.y - 3) + 'px; width: ' + (r.w + 6) + 'px; height: ' + (r.h + 6) + 'px; border: 2px ' + (dashed ? 'dashed ' : 'solid ') + color + '; border-radius: 6px; background: rgba(230,219,116,0.08); pointer-events: none; box-sizing: border-box';
+  }
+  renderVals() {
+    var self = this, s = this.state;
+    var messages = s.messages.map(function (m) {
+      var mine = m.from === 'user';
+      return { text: m.text, pin: m.pin || '', hasPin: !!m.pin, hasActions: !!m.actions,
+        wrapStyle: 'display: flex; flex-direction: column; gap: 6px; max-width: 88%; padding: 12px 14px; border-radius: 14px; ' + (mine ? 'align-self: flex-end; background: #3E3D32' : 'align-self: flex-start; background: #2F302A; border: 1px solid #49483E') };
+    });
+    return {
+      screen: this.props.screen || 'Pull requests',
+      isOpen: s.open, showLauncher: !s.open && !s.picking, picking: s.picking,
+      showHover: !!(s.picking && s.hover), hoverStyle: s.hover ? this.box(s.hover, '#E6DB74', true) : '',
+      showPin: !!(s.pin && !s.picking), pinStyle: s.pin ? this.box(s.pin.rect, '#E6DB74', false) : '',
+      hasPin: !!s.pin, pinLabel: s.pin ? s.pin.label : '',
+      messages: messages, draft: s.draft,
+      pickPressed: s.picking ? 'true' : 'false',
+      pickStyle: 'min-height: 44px; padding: 0 14px; border-radius: 999px; font: inherit; font-weight: 700; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; ' + (s.picking ? 'background: #E6DB74; color: #272822; border: 1.5px solid #E6DB74' : 'background: transparent; color: #E6DB74; border: 1.5px solid #E6DB74'),
+      open: function () { self.setState({ open: true }); },
+      close: function () { self.setState({ open: false, picking: false, pin: null }); },
+      startPick: function () { self.setState({ picking: !self.state.picking, open: true }); },
+      cancelPick: function () { self.setState({ picking: false, hover: null }); },
+      clearPin: function () { self.setState({ pin: null }); },
+      onDraft: function (e) { self.setState({ draft: e.target.value }); },
+      send: function () {
+        var st = self.state, text = (st.draft || '').trim();
+        if (!text) return;
+        var msgs = st.messages.concat([{ from: 'user', pin: st.pin ? st.pin.label : '', text: text }]);
+        msgs.push({ from: 'claude', text: 'On it. I\'ll make that change' + (st.pin ? ' to ' + st.pin.label : '') + ' and open a PR in the app\'s repo for you to review.' });
+        self.setState({ messages: msgs, draft: '', pin: null });
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>
