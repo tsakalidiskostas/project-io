@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { runAgent } from './agent-loop.ts';
 import { flowToMermaid, reviewSummary, type Analysis } from './analysis.ts';
 import { analyzePullRequest } from './analyze.ts';
-import { fetchPrState, postInlineComment, postPrComment } from './github.ts';
+import { approvePr, fetchPrState, fetchReviewState, postInlineComment, postPrComment } from './github.ts';
 import { authStatus, discoverProfiles, importServer, IO_CLAUDE_DIR, listIoServers } from './profile.ts';
 import { runOrThrow } from './run.ts';
 import { selfEdit } from './self-edit/agent.ts';
@@ -179,6 +179,19 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
                 a.unclaimed[index].expected = Boolean(expected);
             }, run);
             return json(res, { analysis: withViews(updated, run) });
+        }
+
+        const prRef = () => {
+            const { owner, repo, number } = store.get(id).pr;
+            return { owner, repo, number };
+        };
+        if (req.method === 'GET' && rest === '/review') return json(res, { review: await fetchReviewState(prRef()) });
+
+        // Approving is an explicit two-step click in the UI; it reviews as the user's gh login and never merges.
+        if (req.method === 'POST' && rest === '/approve') {
+            const { body } = await readJson(req);
+            await approvePr(prRef(), typeof body === 'string' ? body : '');
+            return json(res, { review: await fetchReviewState(prRef()) });
         }
 
         // Posting is an explicit click in the UI; it writes to GitHub as the user's gh login.

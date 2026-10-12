@@ -96,3 +96,38 @@ export async function findPrsForIssue(key: string): Promise<{ url: string; title
     const out = await runOrThrow('gh', ['search', 'prs', key, '--limit', '10', '--json', 'url,title,state']);
     return JSON.parse(out);
 }
+
+interface ReviewView {
+    state: string;
+    reviewDecision: string;
+    author: { login: string };
+    latestReviews: { author: { login: string }; state: string; submittedAt: string }[];
+}
+
+export interface ReviewState {
+    viewer: string;
+    mine: string | null;
+    open: boolean;
+    ownPr: boolean;
+    decision: string;
+}
+
+// GitHub logins are case-insensitive.
+export function reviewState(viewer: string, view: ReviewView): ReviewState {
+    const same = (login: string) => login.toLowerCase() === viewer.toLowerCase();
+    const mine = view.latestReviews.filter(r => same(r.author.login)).sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))[0];
+    return { viewer, mine: mine?.state ?? null, open: view.state === 'OPEN', ownPr: same(view.author.login), decision: view.reviewDecision };
+}
+
+export async function fetchReviewState(ref: PrRef): Promise<ReviewState> {
+    const [viewer, view] = await Promise.all([
+        runOrThrow('gh', ['api', 'user', '--jq', '.login']),
+        runOrThrow('gh', ['pr', 'view', String(ref.number), '--repo', slug(ref), '--json', 'state,reviewDecision,author,latestReviews']),
+    ]);
+    return reviewState(viewer.trim(), JSON.parse(view));
+}
+
+// An approving review, as the user's gh login. Never merges.
+export async function approvePr(ref: PrRef, body: string): Promise<void> {
+    await runOrThrow('gh', ['pr', 'review', String(ref.number), '--repo', slug(ref), '--approve', ...(body.trim() ? ['--body', body] : [])]);
+}

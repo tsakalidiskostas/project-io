@@ -1,4 +1,5 @@
 import { getAnalysis } from './js/api.js';
+import { hideApprove, showApprove } from './js/approve.js';
 import { initChat, setChatScreen } from './js/chat.js';
 import { $, h } from './js/dom.js';
 import { renderInbox } from './js/inbox.js';
@@ -25,6 +26,7 @@ async function route() {
     root.classList.toggle('pr-screen', screen === 'pr');
 
     try {
+        if (screen !== 'pr') hideApprove();
         if (screen === 'settings') {
             setChatScreen('Settings');
             await renderSettings(root);
@@ -33,6 +35,7 @@ async function route() {
             const analysis = await getAnalysis(id, { run });
             const label = { claims: 'Claims & code', flow: 'Behavior flow' }[tab] ?? 'Overview';
             setChatScreen(`PR #${analysis.pr.number} · ${label}`);
+            showApprove(analysis);
             if (tab === 'claims') (await import('./js/claims.js')).renderClaims(root, analysis, claimId);
             else if (tab === 'flow') await (await import('./js/flow.js')).renderFlow(root, analysis);
             else (await import('./js/report.js')).renderReport(root, analysis);
