@@ -29,7 +29,8 @@ async function route() {
             setChatScreen('Settings');
             await renderSettings(root);
         } else if (screen === 'pr' && id) {
-            const analysis = await getAnalysis(id);
+            const run = Number(params.get('run')) || undefined;
+            const analysis = await getAnalysis(id, { run });
             const label = { claims: 'Claims & code', flow: 'Behavior flow' }[tab] ?? 'Overview';
             setChatScreen(`PR #${analysis.pr.number} · ${label}`);
             if (tab === 'claims') (await import('./js/claims.js')).renderClaims(root, analysis, claimId);

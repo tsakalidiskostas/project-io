@@ -6,7 +6,8 @@ import { deriveStatus, type Analysis, type Status } from './analysis.ts';
 import { DEFAULT_MODEL_SETTINGS, ModelSettings } from './model-choice.ts';
 
 // data/ is gitignored: analyses quote private code and must never reach the public repo.
-export const DEFAULT_DB = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'data', 'io.db');
+// IO_DB points a server at another database, e.g. a copy for testing.
+export const DEFAULT_DB = process.env.IO_DB ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'data', 'io.db');
 const ID = /^[\w.-]+__[\w.-]+__\d+$/;
 
 export const analysisId = (owner: string, repo: string, number: number) => `${owner}__${repo}__${number}`;
@@ -50,6 +51,21 @@ export function openStore(file = DEFAULT_DB) {
         dismiss_reason TEXT
     )`);
     db.exec('CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, json TEXT NOT NULL)');
+    // Every run of a PR, numbered from 1. analyses.json mirrors the latest run, which the inbox,
+    // dismissing and merge tracking work from.
+    db.exec(`CREATE TABLE IF NOT EXISTS runs (
+        analysis_id TEXT NOT NULL,
+        n INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        json TEXT NOT NULL,
+        PRIMARY KEY (analysis_id, n)
+    )`);
+    db.exec(`INSERT INTO runs (analysis_id, n, created_at, json)
+             SELECT id, 1, created_at, json FROM analyses WHERE id NOT IN (SELECT analysis_id FROM runs)`);
+
+    const latestRun = (id: string): number =>
+        ((db.prepare('SELECT MAX(n) AS n FROM runs WHERE analysis_id = ?').get(id) as { n: number | null }).n ?? 0);
+    const serialise = (a: Analysis) => JSON.stringify({ ...a, status: deriveStatus(a) });
 
     const summarise = (row: Row): AnalysisSummary => {
         const a: Analysis = JSON.parse(row.json);
@@ -72,19 +88,34 @@ export function openStore(file = DEFAULT_DB) {
     };
 
     return {
-        // A new analysis of the same PR replaces the old one and brings it back into the inbox.
+        // A new analysis of the same PR becomes its latest run and brings it back into the inbox.
         save(a: Analysis): void {
+            const id = checkId(a.id);
+            db.prepare('INSERT INTO runs (analysis_id, n, created_at, json) VALUES (?, ?, ?, ?)').run(id, latestRun(id) + 1, a.createdAt, serialise(a));
             db.prepare(
                 `INSERT INTO analyses (id, json, created_at) VALUES (?, ?, ?)
                  ON CONFLICT(id) DO UPDATE SET json = excluded.json, created_at = excluded.created_at,
                      head_oid = NULL, pr_state = NULL, state_checked_at = NULL, dismissed_at = NULL, dismiss_reason = NULL`,
-            ).run(checkId(a.id), JSON.stringify({ ...a, status: deriveStatus(a) }), a.createdAt);
+            ).run(id, serialise(a), a.createdAt);
         },
 
-        get(id: string): Analysis {
-            const row = db.prepare('SELECT json FROM analyses WHERE id = ?').get(checkId(id)) as { json: string } | undefined;
-            if (!row) throw new Error(`No analysis for ${id}.`);
+        get(id: string, run?: number): Analysis {
+            if (run === undefined) {
+                const row = db.prepare('SELECT json FROM analyses WHERE id = ?').get(checkId(id)) as { json: string } | undefined;
+                if (!row) throw new Error(`No analysis for ${id}.`);
+                return JSON.parse(row.json);
+            }
+            const row = db.prepare('SELECT json FROM runs WHERE analysis_id = ? AND n = ?').get(checkId(id), run) as { json: string } | undefined;
+            if (!row) throw new Error(`No run ${run} of ${id}.`);
             return JSON.parse(row.json);
+        },
+
+        runs(id: string): { n: number; createdAt: string; model: string; runInfo: Analysis['runInfo'] }[] {
+            const rows = db.prepare('SELECT n, created_at, json FROM runs WHERE analysis_id = ? ORDER BY n').all(checkId(id)) as unknown as { n: number; created_at: string; json: string }[];
+            return rows.map(r => {
+                const a: Analysis = JSON.parse(r.json);
+                return { n: r.n, createdAt: r.created_at, model: a.model, runInfo: a.runInfo };
+            });
         },
 
         list({ dismissed = false } = {}): AnalysisSummary[] {
@@ -93,11 +124,15 @@ export function openStore(file = DEFAULT_DB) {
             return (rows as unknown as Row[]).map(summarise);
         },
 
-        update(id: string, change: (a: Analysis) => void): Analysis {
-            const a = this.get(id);
+        // Changes one run; when that run is the latest, the inbox's copy follows.
+        update(id: string, change: (a: Analysis) => void, run?: number): Analysis {
+            const latest = latestRun(checkId(id));
+            const n = run ?? latest;
+            const a = this.get(id, n);
             change(a);
-            db.prepare('UPDATE analyses SET json = ? WHERE id = ?').run(JSON.stringify({ ...a, status: deriveStatus(a) }), checkId(id));
-            return this.get(id);
+            db.prepare('UPDATE runs SET json = ? WHERE analysis_id = ? AND n = ?').run(serialise(a), id, n);
+            if (n === latest) db.prepare('UPDATE analyses SET json = ? WHERE id = ?').run(serialise(a), id);
+            return this.get(id, n);
         },
 
         dismiss(id: string, reason: 'manual' | 'merged'): void {

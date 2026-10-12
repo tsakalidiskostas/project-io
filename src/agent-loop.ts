@@ -4,7 +4,7 @@ import { ensureIoProfile, ioSessionEnv } from './profile.ts';
 
 export type LoopEvent =
     | ({ type: 'model' } & ModelChoice)
-    | { type: 'session'; auth: string; mcpServers: { name: string; status: string }[] }
+    | { type: 'session'; model: string; auth: string; mcpServers: { name: string; status: string }[] }
     | { type: 'text'; delta: string }
     | { type: 'tool'; name: string; input: unknown };
 
@@ -73,6 +73,7 @@ function handle(message: SDKMessage, onEvent: (e: LoopEvent) => void): AgentResu
     if (message.type === 'system' && message.subtype === 'init') {
         onEvent({
             type: 'session',
+            model: message.model,
             auth: message.apiKeySource === 'none' ? 'Claude login' : message.apiKeySource,
             mcpServers: message.mcp_servers.map(s => ({ name: s.name, status: s.status })),
         });

@@ -133,6 +133,8 @@ export async function analyzePullRequest(input: string, onEvent: (e: AnalyzeEven
     const intentChoice = resolveChoice(INTENT_MODEL, models.intent);
 
     onEvent({ type: 'phase', phase: 'intent', label: 'Extracting claims from the issue and description' });
+    // The model id Claude Code reports at session start, so a run records what actually ran.
+    const ranModel = { intent: intentChoice.model as string, verify: '' };
     const intentRun = await runAgent({
         prompt: `<pull_request>\n${pr.title}\n${pr.url}\n\n${pr.body || '(no description)'}\n</pull_request>\n\n${
             branchKey
@@ -149,7 +151,10 @@ export async function analyzePullRequest(input: string, onEvent: (e: AnalyzeEven
             outputFormat: { type: 'json_schema', schema: toOutputSchema(IntentOutput) },
             maxTurns: 15,
         },
-        onEvent,
+        onEvent: e => {
+            if (e.type === 'session') ranModel.intent = e.model;
+            onEvent(e);
+        },
         signal,
         waitForMcp: true,
     });
@@ -190,7 +195,10 @@ ${diff}
             outputFormat: { type: 'json_schema', schema: toOutputSchema(VerifyOutput) },
             maxTurns: 60,
         },
-        onEvent,
+        onEvent: e => {
+            if (e.type === 'session') ranModel.verify = e.model;
+            onEvent(e);
+        },
         signal,
     });
     const verify = VerifyOutput.parse(verifyRun.structured);
@@ -208,6 +216,10 @@ ${diff}
         id,
         createdAt: new Date().toISOString(),
         model: `${intentChoice.model} → ${choice.model}`,
+        runInfo: {
+            intent: { model: ranModel.intent, effort: intentChoice.effort },
+            verify: { model: ranModel.verify || choice.model, effort: choice.effort },
+        },
         pr: {
             owner: ref.owner,
             repo: ref.repo,

@@ -1,4 +1,4 @@
-import { post, setCachedAnalysis } from './api.js';
+import { analysisApi, post, prLink, setCachedAnalysis } from './api.js';
 import { badge, h, STATUS, VERDICT } from './dom.js';
 import { commentComposer, prHeader } from './pr-shell.js';
 
@@ -38,7 +38,7 @@ function claimCard(a, c) {
         h('p', null, c.codeDoes),
         h('div', { class: 'chips' },
             c.evidence.length ? c.evidence.map(e => h('code', { class: 'chip' }, `${e.path} ${range(e)}`)) : h('code', { class: 'chip' }, 'No matching code'),
-            h('a', { href: `#pr/${a.id}/claims/${c.id}` }, c.verdict === 'missing' ? 'See where it would go →' : 'See the code →'),
+            h('a', { href: prLink(a, `/claims/${c.id}`) }, c.verdict === 'missing' ? 'See where it would go →' : 'See the code →'),
         ),
     );
 }
@@ -46,7 +46,7 @@ function claimCard(a, c) {
 function unclaimedCard(a, u, index, rerender) {
     const composer = h('div', { hidden: true });
     const toggle = async () => {
-        const { analysis } = await post(`/api/analyses/${encodeURIComponent(a.id)}/unclaimed/${index}`, { expected: !u.expected });
+        const { analysis } = await post(analysisApi(a, `/unclaimed/${index}`), { expected: !u.expected });
         setCachedAnalysis(analysis);
         rerender(analysis);
     };
@@ -60,7 +60,7 @@ function unclaimedCard(a, u, index, rerender) {
             postLabel: `Post to PR #${a.pr.number}`,
             placement: { inline: `${u.path} line ${u.line}`, initial: 'inline', onChange: v => (placement = v) },
             onPost: async (body, where) => {
-                await post(`/api/analyses/${encodeURIComponent(a.id)}/comment`, { body, placement: where ?? placement, path: u.path, line: u.line });
+                await post(analysisApi(a, '/comment'), { body, placement: where ?? placement, path: u.path, line: u.line });
                 return where === 'inline' ? `Posted · ${u.path} line ${u.line}` : `Posted · PR #${a.pr.number} conversation`;
             },
             onCancel: () => (composer.hidden = true),
@@ -118,11 +118,11 @@ export function renderReport(root, a) {
         h('section', { class: 'section-head', 'aria-label': 'Generated artifacts', style: 'gap: var(--ir-space-4)' },
             h('h2', { class: 'h2-orange' }, 'Generated for this PR'),
             h('div', { class: 'artifacts' },
-                h('a', { class: 'artifact', href: `#pr/${a.id}/flow` }, h('b', null, 'Behavior flow'), h('span', null, 'Before and after, with each step tied to a claim.')),
-                h('a', { class: 'artifact', href: `#pr/${a.id}/claims` }, h('b', null, 'Annotated code walkthrough'), h('span', null, 'The key lines for each claim, explained.')),
+                h('a', { class: 'artifact', href: prLink(a, '/flow') }, h('b', null, 'Behavior flow'), h('span', null, 'Before and after, with each step tied to a claim.')),
+                h('a', { class: 'artifact', href: prLink(a, '/claims') }, h('b', null, 'Annotated code walkthrough'), h('span', null, 'The key lines for each claim, explained.')),
                 h('a', {
                     class: 'artifact',
-                    href: `#pr/${a.id}`,
+                    href: prLink(a),
                     onclick: e => { e.preventDefault(); root.querySelector('.pr-title-row .btn-primary')?.click(); scrollTo({ top: 0, behavior: 'smooth' }); },
                 }, h('b', null, 'Review summary'), h('span', null, 'Markdown ready to post as a PR comment.')),
             ),

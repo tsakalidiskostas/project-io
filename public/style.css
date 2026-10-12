@@ -278,6 +278,13 @@ button:disabled { opacity: 0.55; cursor: progress; }
 .composer-panel h3 { display: flex; align-items: center; gap: var(--ir-space-2); color: var(--accent, var(--ir-cyan)); }
 .status-line { font-size: var(--ir-fs-meta); }
 
+.pr-title-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ir-space-3) var(--ir-space-6); }
+.pr-title-line h1 { flex: 1 1 480px; }
+.run-picker { flex: 0 0 auto; }
+.run-picker .select { min-width: 240px; }
+.run-sep { color: var(--ir-text-muted); }
+.run-label { color: var(--ir-text-muted); }
+
 /* ---------- Claims & code ---------- */
 .claims-layout { display: flex; flex-wrap: wrap; gap: var(--ir-space-6); align-items: flex-start; }
 .claim-list { flex: 1 1 280px; max-width: 340px; display: flex; flex-direction: column; gap: var(--ir-space-2); }

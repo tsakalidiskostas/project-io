@@ -1,4 +1,4 @@
-import { post } from './api.js';
+import { analysisApi, post, prLink } from './api.js';
 import { h, plural, statusLine } from './dom.js';
 import { startAnalysis } from './inbox.js';
 
@@ -14,22 +14,27 @@ export function prHeader(a, active, { actions = true } = {}) {
         `${pr.owner}/${pr.repo} · PR #${pr.number} · opened by ${pr.author} · ${plural(pr.filesChanged, 'file')}, `,
         h('span', { class: 'add' }, `+${pr.additions}`), ' ', h('span', { class: 'del' }, `−${pr.deletions}`),
         a.issue ? [' · linked to ', a.issue.url ? h('a', { href: a.issue.url, target: '_blank', rel: 'noopener' }, a.issue.key) : a.issue.key] : ' · no linked issue',
+        a.runLabel ? [h('span', { class: 'run-sep', 'aria-hidden': 'true' }, ' ‖ '), h('span', { class: 'run-label' }, a.runLabel)] : null,
     );
+    const runPicker = a.runs?.length > 1
+        ? h('label', { class: 'run-picker' }, h('span', { class: 'visually-hidden' }, 'Which analysis run to show'), runSelect(a, active))
+        : null;
     const summaryPanel = h('div', { hidden: true });
     const actionRow = actions
         ? h('div', { class: 'actions' },
               h('a', { class: 'btn btn-secondary accent-cyan', href: pr.url, target: '_blank', rel: 'noopener' }, 'Open in GitHub'),
               a.issue?.url ? h('a', { class: 'btn btn-secondary accent-purple', href: a.issue.url, target: '_blank', rel: 'noopener' }, 'Open in Linear') : null,
-              h('button', { type: 'button', class: 'btn btn-ghost', title: 'Run the analysis again', onclick: () => { startAnalysis(pr.url); location.hash = '#inbox'; } }, 'Re-analyze'),
+              h('button', { type: 'button', class: 'btn btn-ghost', title: 'Run the analysis again; earlier runs are kept', onclick: () => { startAnalysis(pr.url); location.hash = '#inbox'; } }, 'Re-analyze'),
               h('button', { type: 'button', class: 'btn btn-primary', onclick: () => openSummary(a, summaryPanel) }, 'Post review summary'),
           )
         : null;
     return h('section', { class: 'pr-header', 'aria-label': 'Pull request' },
         h('a', { class: 'back', href: '#inbox' }, '← All pull requests'),
-        h('div', { class: 'pr-title-row' }, h('div', null, h('h1', null, pr.title), meta), actionRow),
+        h('div', { class: 'pr-title-line' }, h('h1', null, pr.title), runPicker),
+        h('div', { class: 'pr-title-row' }, h('div', null, meta), actionRow),
         summaryPanel,
         h('nav', { class: 'tabs', 'aria-label': 'Report sections' },
-            TABS.map(t => h('a', { href: `#pr/${a.id}${t.path}`, 'aria-current': t.key === active ? 'page' : null }, t.label)),
+            TABS.map(t => h('a', { href: prLink(a, t.path), 'aria-current': t.key === active ? 'page' : null }, t.label)),
         ),
     );
 }
@@ -108,11 +113,29 @@ function openSummary(a, holder) {
         text: a.summaryMarkdown,
         postLabel: `Post to PR #${a.pr.number}`,
         onPost: async body => {
-            await post(`/api/analyses/${encodeURIComponent(a.id)}/comment`, { body, placement: 'general' });
+            await post(analysisApi(a, '/comment'), { body, placement: 'general' });
             return `Posted · PR #${a.pr.number} conversation`;
         },
         onCancel: () => (holder.hidden = true),
     });
     holder.replaceChildren(panel);
     holder.hidden = false;
+}
+
+const TAB_PATH = { overview: '', claims: '/claims', flow: '/flow' };
+
+function runSelect(a, active) {
+    const total = a.runs.length;
+    const when = iso => new Date(iso).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    const select = h('select', {
+        class: 'select',
+        title: 'Earlier analyses of this PR are kept',
+        onchange: e => {
+            const n = Number(e.target.value);
+            const latest = a.runs.at(-1).n;
+            location.hash = `#pr/${a.id}${TAB_PATH[active] ?? ''}${n === latest ? '' : `?run=${n}`}`;
+        },
+    }, a.runs.map(r => h('option', { value: r.n, title: r.label }, `Analysis ${r.n} of ${total} · ${when(r.createdAt)}`)));
+    select.value = String(a.run);
+    return select;
 }

@@ -1,6 +1,6 @@
 import DOMPurify from 'https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.es.mjs';
 import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
-import { post } from './api.js';
+import { analysisApi, post } from './api.js';
 import { h, statusLine } from './dom.js';
 import { commentComposer, prHeader } from './pr-shell.js';
 
@@ -67,7 +67,7 @@ export async function renderFlow(root, a) {
             postLabel: 'Post with diagram',
             // GitHub renders a mermaid code block as the diagram itself, so it travels as text.
             onPost: async body => {
-                await post(`/api/analyses/${encodeURIComponent(a.id)}/comment`, { body: `${body}\n\n\`\`\`mermaid\n${a.mermaid}\n\`\`\``, placement: 'general' });
+                await post(analysisApi(a, '/comment'), { body: `${body}\n\n\`\`\`mermaid\n${a.mermaid}\n\`\`\``, placement: 'general' });
                 return `Posted to PR #${a.pr.number} with the diagram attached.`;
             },
             onCancel: () => (commentHolder.hidden = true),

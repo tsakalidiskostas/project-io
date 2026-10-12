@@ -1,4 +1,4 @@
-import { post } from './api.js';
+import { analysisApi, post, prLink } from './api.js';
 import { badge, h, icon, VERDICT } from './dom.js';
 import { highlight } from './highlight.js';
 import { commentComposer, prHeader } from './pr-shell.js';
@@ -48,7 +48,7 @@ function explanations(excerpt) {
 }
 
 function suggestedComment(a, c) {
-    const key = `${a.id}:${c.id}`;
+    const key = `${a.id}:${a.run}:${c.id}`;
     const suggestion = c.comment;
     const inline = suggestion?.path && suggestion.line > 0 ? `${suggestion.path} line ${suggestion.line}` : null;
     const kind = suggestion?.kind === 'request_changes'
@@ -61,7 +61,7 @@ function suggestedComment(a, c) {
         postLabel: `Post to PR #${a.pr.number}`,
         placement: { inline, initial: inline ? 'inline' : 'general' },
         onPost: async (body, where) => {
-            await post(`/api/analyses/${encodeURIComponent(a.id)}/comment`, { body, placement: where, path: suggestion?.path, line: suggestion?.line });
+            await post(analysisApi(a, '/comment'), { body, placement: where, path: suggestion?.path, line: suggestion?.line });
             return where === 'inline' ? `Posted · ${inline}` : `Posted · PR #${a.pr.number} conversation`;
         },
     });
@@ -87,7 +87,7 @@ export function renderClaims(root, a, claimId) {
                         type: 'button',
                         class: 'claim-pick',
                         'aria-pressed': String(c === selected),
-                        onclick: () => (location.hash = `#pr/${a.id}/claims/${c.id}`),
+                        onclick: () => (location.hash = prLink(a, `/claims/${c.id}`)),
                     }, badge(VERDICT[c.verdict]), h('span', null, c.title)),
                 ),
             ),

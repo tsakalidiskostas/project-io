@@ -97,10 +97,18 @@ export interface Excerpt {
 
 export type Status = 'needs_attention' | 'review' | 'aligned' | 'no_linked_issue';
 
+export interface RunModel {
+    model: string;
+    effort: string;
+}
+
 export interface Analysis {
     id: string;
     createdAt: string;
     model: string;
+    // The model each phase actually ran, as Claude Code reported it. Absent on runs saved before
+    // this was recorded; `model` then holds only the aliases.
+    runInfo?: { intent: RunModel; verify: RunModel };
     pr: {
         owner: string;
         repo: string;

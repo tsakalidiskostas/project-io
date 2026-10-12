@@ -88,3 +88,41 @@ test('only PRs not checked recently are due a state check', () => {
 test('rejects ids that are not analysis ids', () => {
     assert.throws(() => fresh().get('../../etc'), /Not an analysis id/);
 });
+
+test('keeps every run of a PR; the inbox and plain get use the latest', () => {
+    const store = fresh();
+    store.save(analysis(1, { verdict: { summary: 'first' } }));
+    store.save(analysis(1, { verdict: { summary: 'second' } }));
+    assert.equal(store.get('o__r__1').verdict.summary, 'second');
+    assert.equal(store.get('o__r__1', 1).verdict.summary, 'first');
+    assert.deepEqual(store.runs('o__r__1').map(r => r.n), [1, 2]);
+    assert.equal(store.list().length, 1);
+});
+
+test('changing an older run leaves the latest alone', () => {
+    const store = fresh();
+    store.save(analysis(1));
+    store.save(analysis(1));
+    store.update('o__r__1', a => (a.unclaimed[0].expected = true), 1);
+    assert.equal(store.get('o__r__1', 1).unclaimed[0].expected, true);
+    assert.equal(store.get('o__r__1').unclaimed[0].expected, false);
+    store.update('o__r__1', a => (a.unclaimed[0].expected = true));
+    assert.equal(store.get('o__r__1', 2).unclaimed[0].expected, true);
+    assert.equal(store.list()[0].unclaimed, 0);
+});
+
+test('asking for a run that does not exist fails clearly', () => {
+    const store = fresh();
+    store.save(analysis(1));
+    assert.throws(() => store.get('o__r__1', 5), /No run 5/);
+});
+
+test('analyses saved before run history become run 1', async () => {
+    const { DatabaseSync } = await import('node:sqlite');
+    const file = path.join(mkdtempSync(path.join(os.tmpdir(), 'io-store-')), 'io.db');
+    const old = new DatabaseSync(file);
+    old.exec('CREATE TABLE analyses (id TEXT PRIMARY KEY, json TEXT NOT NULL, created_at TEXT NOT NULL, pr_state TEXT, head_oid TEXT, state_checked_at INTEGER, dismissed_at TEXT, dismiss_reason TEXT)');
+    old.prepare('INSERT INTO analyses (id, json, created_at) VALUES (?, ?, ?)').run('o__r__1', JSON.stringify(analysis(1)), analysis(1).createdAt);
+    old.close();
+    assert.deepEqual(openStore(file).runs('o__r__1').map(r => r.n), [1]);
+});

@@ -60,3 +60,16 @@ export function resolveChoice(auto: ModelChoice, override: z.infer<typeof Overri
         reason: 'set in Settings',
     };
 }
+
+// "claude-sonnet-5-5" → "Sonnet 5.5", "claude-sonnet-4-5-20250929" → "Sonnet 4.5", "sonnet" → "Sonnet".
+export function modelDisplayName(id: string): string {
+    const m = id.match(/^(?:claude-)?(haiku|sonnet|opus|fable|mythos)(?:-(\d+))?(?:-(\d{1,2}))?(?:-\d{8})?$/);
+    if (!m) return id;
+    const family = m[1][0].toUpperCase() + m[1].slice(1);
+    return [family, m[2] && (m[3] ? `${m[2]}.${m[3]}` : m[2])].filter(Boolean).join(' ');
+}
+
+export function describeRun(info: { intent: { model: string; effort: string }; verify: { model: string; effort: string } }): string {
+    const part = (p: { model: string; effort: string }) => `${modelDisplayName(p.model)} ${p.effort}`;
+    return `extracted claims with ${part(info.intent)}, claims vs code with ${part(info.verify)}`;
+}

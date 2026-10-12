@@ -11,7 +11,7 @@ import { authStatus, discoverProfiles, importServer, IO_CLAUDE_DIR, listIoServer
 import { runOrThrow } from './run.ts';
 import { selfEdit } from './self-edit/agent.ts';
 import { revertLastSelfEdit } from './self-edit/git.ts';
-import { ModelSettings, REWRITE_MODEL, resolveChoice } from './model-choice.ts';
+import { describeRun, modelDisplayName, ModelSettings, REWRITE_MODEL, resolveChoice } from './model-choice.ts';
 import { defaultStore } from './store.ts';
 import { planUsage } from './usage.ts';
 
@@ -59,9 +59,24 @@ function restartSoon() {
     setTimeout(() => process.exit(RESTART_EXIT_CODE), 300);
 }
 
-function withViews(a: Analysis) {
+// Runs saved before runInfo existed only know the aliases, e.g. "sonnet → opus".
+function runLabel(r: { model: string; runInfo: Analysis['runInfo'] }): string {
+    if (r.runInfo) return describeRun(r.runInfo);
+    const [intent, verify] = r.model.split(' → ');
+    return `extracted claims with ${modelDisplayName(intent)}, claims vs code with ${modelDisplayName(verify ?? intent)}`;
+}
+
+function withViews(a: Analysis, run: number) {
     const verdicts = Object.fromEntries(a.claims.map(c => [c.id, c.verdict]));
-    return { ...a, mermaid: flowToMermaid(a.flow, verdicts), summaryMarkdown: reviewSummary(a) };
+    const runs = defaultStore().runs(a.id).map(r => ({ n: r.n, createdAt: r.createdAt, label: runLabel(r) }));
+    return {
+        ...a,
+        mermaid: flowToMermaid(a.flow, verdicts),
+        summaryMarkdown: reviewSummary(a),
+        run,
+        runs,
+        runLabel: runs.find(r => r.n === run)?.label ?? '',
+    };
 }
 
 const STATE_CHECK_EVERY_MS = 10 * 60_000;
@@ -149,7 +164,9 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
     if (analysisRoute) {
         const [, id, rest = ''] = analysisRoute;
         const store = defaultStore();
-        if (req.method === 'GET' && rest === '') return json(res, { analysis: withViews(store.get(id)) });
+        const latest = store.runs(id).at(-1)?.n ?? 1;
+        const run = url.searchParams.has('run') ? Number(url.searchParams.get('run')) : latest;
+        if (req.method === 'GET' && rest === '') return json(res, { analysis: withViews(store.get(id, run), run) });
         if (req.method === 'POST' && rest === '/dismiss') return json(res, (store.dismiss(id, 'manual'), {}));
         if (req.method === 'POST' && rest === '/restore') return json(res, (store.restore(id), {}));
 
@@ -160,15 +177,15 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
             const updated = store.update(id, a => {
                 if (!a.unclaimed[index]) throw new Error('No such unclaimed change.');
                 a.unclaimed[index].expected = Boolean(expected);
-            });
-            return json(res, { analysis: withViews(updated) });
+            }, run);
+            return json(res, { analysis: withViews(updated, run) });
         }
 
         // Posting is an explicit click in the UI; it writes to GitHub as the user's gh login.
         if (req.method === 'POST' && rest === '/comment') {
             const { body, placement, path: file, line } = await readJson(req);
             if (typeof body !== 'string' || !body.trim()) throw new Error('The comment is empty.');
-            const a = store.get(id);
+            const a = store.get(id, run);
             const ref = { owner: a.pr.owner, repo: a.pr.repo, number: a.pr.number };
             const where =
                 placement === 'inline'
