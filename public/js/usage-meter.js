@@ -1,5 +1,5 @@
 import { get } from './api.js';
-import { $, h } from './dom.js';
+import { $, append, h } from './dom.js';
 
 const POLL_MS = 120_000;
 
@@ -27,12 +27,14 @@ function render(usage) {
         week ? `Week: ${week.percent}%${week.resetsAt ? `, resets ${day(week.resetsAt)}` : ''}` : null,
         usage.plan ? `Plan: ${usage.plan}` : null,
     ].filter(Boolean).join('\n');
-    meter.replaceChildren(
+    // append() skips null; native replaceChildren would render it as the text "null".
+    meter.replaceChildren();
+    append(meter, [
         h('span', { class: 'eyebrow' }, 'Session'),
         h('span', { class: 'usage-bar' }, h('span', { style: `width: ${session.percent}%` })),
         h('b', null, `${session.percent}%`),
         session.resetsAt && session.percent >= 70 ? h('span', { class: 'meta' }, `resets ${time(session.resetsAt)}`) : null,
-    );
+    ]);
     meter.hidden = false;
 }
 

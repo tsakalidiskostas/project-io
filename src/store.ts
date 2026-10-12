@@ -3,6 +3,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import { deriveStatus, type Analysis, type Status } from './analysis.ts';
+import { DEFAULT_MODEL_SETTINGS, ModelSettings } from './model-choice.ts';
 
 // data/ is gitignored: analyses quote private code and must never reach the public repo.
 export const DEFAULT_DB = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'data', 'io.db');
@@ -48,6 +49,7 @@ export function openStore(file = DEFAULT_DB) {
         dismissed_at TEXT,
         dismiss_reason TEXT
     )`);
+    db.exec('CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, json TEXT NOT NULL)');
 
     const summarise = (row: Row): AnalysisSummary => {
         const a: Analysis = JSON.parse(row.json);
@@ -114,6 +116,19 @@ export function openStore(file = DEFAULT_DB) {
                     id,
                 );
             }
+        },
+
+        // Unknown or invalid stored values fall back to auto rather than failing an analysis.
+        modelSettings(): ModelSettings {
+            const row = db.prepare("SELECT json FROM settings WHERE key = 'models'").get() as { json: string } | undefined;
+            const parsed = row ? ModelSettings.safeParse({ ...DEFAULT_MODEL_SETTINGS, ...JSON.parse(row.json) }) : null;
+            return parsed?.success ? parsed.data : DEFAULT_MODEL_SETTINGS;
+        },
+
+        saveModelSettings(settings: ModelSettings): void {
+            db.prepare("INSERT INTO settings (key, json) VALUES ('models', ?) ON CONFLICT(key) DO UPDATE SET json = excluded.json").run(
+                JSON.stringify(ModelSettings.parse(settings)),
+            );
         },
 
         dueForStateCheck(maxAgeMs: number): string[] {

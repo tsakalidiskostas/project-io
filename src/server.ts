@@ -11,6 +11,7 @@ import { authStatus, discoverProfiles, importServer, IO_CLAUDE_DIR, listIoServer
 import { runOrThrow } from './run.ts';
 import { selfEdit } from './self-edit/agent.ts';
 import { revertLastSelfEdit } from './self-edit/git.ts';
+import { ModelSettings, REWRITE_MODEL, resolveChoice } from './model-choice.ts';
 import { defaultStore } from './store.ts';
 import { planUsage } from './usage.ts';
 
@@ -102,6 +103,15 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
         return json(res, { sha });
     }
 
+    if (route === 'GET /api/settings/models') return json(res, { models: defaultStore().modelSettings() });
+
+    if (route === 'POST /api/settings/models') {
+        const parsed = ModelSettings.safeParse((await readJson(req)).models);
+        if (!parsed.success) throw new Error(`Invalid model settings: ${parsed.error.message}`);
+        defaultStore().saveModelSettings(parsed.data);
+        return json(res, { models: defaultStore().modelSettings() });
+    }
+
     if (route === 'GET /api/usage') return json(res, { usage: await planUsage({ fresh: url.searchParams.get('fresh') === '1' }) });
 
     if (route === 'GET /api/profile') {
@@ -172,7 +182,7 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
         const { text } = await readJson(req);
         const { text: rewritten } = await runAgent({
             prompt: `Rewrite this pull request review comment so it is clear, specific and courteous, keeps every technical point, and stays as short as it can be. Reply with the comment only.\n\n${String(text)}`,
-            choice: { model: 'haiku', effort: 'low', reason: 'rewriting a comment' },
+            choice: resolveChoice(REWRITE_MODEL, defaultStore().modelSettings().rewrite),
             options: { cwd: os.tmpdir(), settingSources: [], tools: [], strictMcpConfig: true, maxTurns: 1 },
             onEvent: () => undefined,
         });

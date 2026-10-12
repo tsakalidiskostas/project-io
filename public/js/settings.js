@@ -8,6 +8,60 @@ const SERVER_STATUS = {
     unknown: { label: 'Unknown', cls: 'v-neutral' },
 };
 
+const OPERATIONS = [
+    { key: 'intent', label: 'Extract claims', auto: 'Sonnet, low effort. Reads only the issue and the PR description.' },
+    { key: 'verify', label: 'Check claims against the code', auto: 'By PR size: Haiku for docs-only, Sonnet for small PRs, Opus for larger ones.' },
+    { key: 'selfEdit', label: 'Change Io', auto: 'Opus, high effort. A wrong edit to Io costs more than the tokens saved.' },
+    { key: 'rewrite', label: 'Rewrite a comment', auto: 'Haiku, low effort.' },
+];
+const MODELS = [['auto', 'Auto'], ['haiku', 'Haiku'], ['sonnet', 'Sonnet'], ['opus', 'Opus']];
+const EFFORTS = [['auto', 'Auto'], ['low', 'Low'], ['medium', 'Medium'], ['high', 'High'], ['xhigh', 'Extra high'], ['max', 'Max']];
+
+function select(id, options, value, onchange) {
+    const node = h('select', { id, class: 'select', onchange }, options.map(([v, text]) => h('option', { value: v }, text)));
+    node.value = value;
+    return node;
+}
+
+async function modelsCard() {
+    const status = h('p', { class: 'status-line', role: 'status' });
+    const list = h('ul', { class: 'rows' }, h('li', { class: 'meta' }, 'Loading…'));
+    let models;
+    try {
+        models = (await get('/api/settings/models')).models;
+    } catch (err) {
+        statusLine(status, err.message, 'error');
+        return h('section', { class: 'card', 'aria-label': 'Models' }, h('h2', { class: 'h2-orange' }, 'Models'), status);
+    }
+    const save = async () => {
+        statusLine(status, 'Saving…');
+        try {
+            models = (await post('/api/settings/models', { models })).models;
+            statusLine(status, 'Saved. The next run uses it.', 'ok');
+        } catch (err) {
+            statusLine(status, err.message, 'error');
+        }
+    };
+    list.replaceChildren(
+        ...OPERATIONS.map(op =>
+            h('li', null,
+                h('span', { class: 'row-name' }, op.label),
+                h('span', { class: 'row-target', style: 'font-family: var(--ir-font-body)' }, `Auto: ${op.auto}`),
+                h('label', { class: 'visually-hidden', for: `model-${op.key}` }, `Model for ${op.label}`),
+                select(`model-${op.key}`, MODELS, models[op.key].model, e => { models[op.key].model = e.target.value; save(); }),
+                h('label', { class: 'visually-hidden', for: `effort-${op.key}` }, `Effort for ${op.label}`),
+                select(`effort-${op.key}`, EFFORTS, models[op.key].effort, e => { models[op.key].effort = e.target.value; save(); }),
+            ),
+        ),
+    );
+    return h('section', { class: 'card', 'aria-label': 'Models' },
+        h('h2', { class: 'h2-orange' }, 'Models'),
+        h('p', { class: 'meta' }, 'Which Claude model, and how much effort, each operation uses. Auto picks the cheapest that still does the job well. Every model runs on Io’s Claude login, so larger models use up the session faster.'),
+        list,
+        status,
+    );
+}
+
 export async function renderSettings(root) {
     const auth = h('p', { class: 'meta', role: 'status' }, 'Checking…');
     const dir = h('code', null, '…');
@@ -15,8 +69,10 @@ export async function renderSettings(root) {
     const importArea = h('div', null, h('p', { class: 'meta' }, 'Checking…'));
     const importStatus = h('p', { class: 'status-line', role: 'status' });
 
+    const models = h('div');
     root.replaceChildren(
         h('h1', null, 'Settings'),
+        models,
         h('section', { class: 'card', 'aria-label': 'Claude profile' },
             h('h2', { class: 'h2-yellow' }, 'Io’s Claude profile'),
             h('p', null, 'Io runs Claude Code in a profile of its own, whichever shell or profile you start it from. Its login and MCP servers live in ', dir, '. GitHub goes through the GitHub CLI (', h('code', null, 'gh auth login'), ').'),
@@ -34,6 +90,8 @@ export async function renderSettings(root) {
             importStatus,
         ),
     );
+
+    modelsCard().then(card => models.replaceWith(card));
 
     let profile;
     try {

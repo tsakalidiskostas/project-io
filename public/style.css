@@ -346,6 +346,11 @@ button:disabled { opacity: 0.55; cursor: progress; }
 .rows li:first-child { border-top: 0; }
 .row-name { flex: 0 1 200px; font-weight: 700; }
 .row-target { flex: 999 1 260px; font-family: var(--ir-font-code); font-size: 13px; color: var(--ir-text-muted); overflow-wrap: anywhere; }
+.select {
+    font: inherit; min-height: var(--ir-touch); padding: 0 var(--ir-space-3);
+    border-radius: var(--ir-radius-input); border: 1.5px solid var(--ir-border);
+    background: var(--ir-surface-sunk); color: var(--ir-text); cursor: pointer;
+}
 .profile-label { margin: var(--ir-space-4) 0 0; color: var(--ir-purple-text); }
 
 /* ---------- Chat sidebar ---------- */

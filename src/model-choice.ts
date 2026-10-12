@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 // Aliases, not model IDs: the Claude Code CLI resolves them to the current generation.
@@ -31,3 +33,30 @@ const kb = (chars: number) => `${Math.round(chars / 1000)}k chars of diff`;
 
 // Extracting claims reads a description and an issue, never code: Sonnet at low effort is plenty.
 export const INTENT_MODEL: ModelChoice = { model: 'sonnet', effort: 'low', reason: 'extracting claims from the issue and description' };
+
+// Rewriting a review comment is a short, low-stakes edit.
+export const REWRITE_MODEL: ModelChoice = { model: 'haiku', effort: 'low', reason: 'rewriting a comment' };
+
+// Per-operation overrides chosen in Settings; 'auto' keeps the choice above.
+export const OPERATIONS = ['intent', 'verify', 'selfEdit', 'rewrite'] as const;
+export type Operation = (typeof OPERATIONS)[number];
+
+const Override = z.object({
+    model: z.enum(['auto', 'haiku', 'sonnet', 'opus']),
+    effort: z.enum(['auto', 'low', 'medium', 'high', 'xhigh', 'max']),
+});
+export const ModelSettings = z.strictObject(Object.fromEntries(OPERATIONS.map(op => [op, Override])) as Record<Operation, typeof Override>);
+export type ModelSettings = z.infer<typeof ModelSettings>;
+
+export const DEFAULT_MODEL_SETTINGS: ModelSettings = Object.fromEntries(
+    OPERATIONS.map(op => [op, { model: 'auto', effort: 'auto' }]),
+) as ModelSettings;
+
+export function resolveChoice(auto: ModelChoice, override: z.infer<typeof Override>): ModelChoice {
+    if (override.model === 'auto' && override.effort === 'auto') return auto;
+    return {
+        model: override.model === 'auto' ? auto.model : override.model,
+        effort: override.effort === 'auto' ? auto.effort : override.effort,
+        reason: 'set in Settings',
+    };
+}

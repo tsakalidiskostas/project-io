@@ -2,7 +2,8 @@ import path from 'node:path';
 import { createSdkMcpServer, tool, type HookCallback } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
 import { runAgent, type LoopEvent } from '../agent-loop.ts';
-import { SELF_EDIT_MODEL } from '../model-choice.ts';
+import { resolveChoice, SELF_EDIT_MODEL } from '../model-choice.ts';
+import { defaultStore } from '../store.ts';
 import { run } from '../run.ts';
 import { GuardError, resolveEditablePath, resolveReadablePath } from './guard.ts';
 import { changedFiles, commitAll, discardAll, isClean, SELF_EDIT_TRAILER } from './git.ts';
@@ -88,7 +89,7 @@ export async function selfEdit(root: string, request: string, onEvent: (e: SelfE
     try {
         const { text: summary } = await runAgent({
             prompt: `Change requested by the user:\n\n${request}`,
-            choice: SELF_EDIT_MODEL,
+            choice: resolveChoice(SELF_EDIT_MODEL, defaultStore().modelSettings().selfEdit),
             options: {
                 cwd: root,
                 systemPrompt: { type: 'preset', preset: 'claude_code', append: INSTRUCTIONS },

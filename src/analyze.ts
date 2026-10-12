@@ -7,7 +7,7 @@ import { isReadOnlyToolName, runAgent, type LoopEvent } from './agent-loop.ts';
 import { addedLinesByFile, buildExcerpt, IntentOutput, toOutputSchema, issueKeyFromLinearUrl, VerifyOutput, type Analysis } from './analysis.ts';
 import { fetchPullRequest, findPrsForIssue, parsePrRef, readRepoFile, searchRepoCode, type PrRef, type PullRequest } from './github.ts';
 import { extractIssueKey } from './linear.ts';
-import { chooseExplainModel, INTENT_MODEL } from './model-choice.ts';
+import { chooseExplainModel, INTENT_MODEL, resolveChoice } from './model-choice.ts';
 import { analysisId, defaultStore } from './store.ts';
 
 // Roughly 150k tokens of diff. Past that the model reads the rest through read_file instead.
@@ -129,6 +129,8 @@ export async function analyzePullRequest(input: string, onEvent: (e: AnalyzeEven
         issueKey: branchKey,
     });
     const cwd = await scratchDir();
+    const models = defaultStore().modelSettings();
+    const intentChoice = resolveChoice(INTENT_MODEL, models.intent);
 
     onEvent({ type: 'phase', phase: 'intent', label: 'Extracting claims from the issue and description' });
     const intentRun = await runAgent({
@@ -137,7 +139,7 @@ export async function analyzePullRequest(input: string, onEvent: (e: AnalyzeEven
                 ? `The branch names issue ${branchKey}. Load it, and its parent, with your issue-tracker tools before you answer; leave issue empty only if no tool can load it.`
                 : 'The branch names no issue.'
         }`,
-        choice: INTENT_MODEL,
+        choice: intentChoice,
         options: {
             cwd,
             systemPrompt: INTENT_SYSTEM,
@@ -154,7 +156,7 @@ export async function analyzePullRequest(input: string, onEvent: (e: AnalyzeEven
     const intent = IntentOutput.parse(intentRun.structured);
 
     const { text: diff, omittedFiles } = budgetDiff(pr.diff, DIFF_BUDGET_CHARS);
-    const choice = chooseExplainModel({ diffChars: pr.diff.length, files: pr.files.map(f => f.path) });
+    const choice = resolveChoice(chooseExplainModel({ diffChars: pr.diff.length, files: pr.files.map(f => f.path) }), models.verify);
     onEvent({ type: 'phase', phase: 'verify', label: 'Checking each claim against the code' });
     const verifyRun = await runAgent({
         prompt: `<claims>\n${JSON.stringify(intent.claims, null, 1)}\n</claims>
@@ -205,7 +207,7 @@ ${diff}
     const analysis: Analysis = {
         id,
         createdAt: new Date().toISOString(),
-        model: `${INTENT_MODEL.model} → ${choice.model}`,
+        model: `${intentChoice.model} → ${choice.model}`,
         pr: {
             owner: ref.owner,
             repo: ref.repo,
