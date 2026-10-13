@@ -45,6 +45,13 @@ export function startAnalysis(input) {
     });
 }
 
+// Merged and closed PRs stay until dismissed by hand; the tag says why there is nothing left to review.
+function prStateTag(state) {
+    if (state === 'MERGED') return badge({ label: 'Merged', cls: 'v-neutral' });
+    if (state === 'CLOSED') return badge({ label: 'Closed', cls: 'v-neutral' });
+    return null;
+}
+
 function coverage(counts) {
     const total = counts.delivered + counts.partial + counts.missing + counts.unverifiable;
     const bar = h('div', { class: 'coverage', role: 'img', 'aria-label': 'Claim coverage' });
@@ -73,7 +80,7 @@ function prRow(s, { dismissedView }) {
         : h('button', {
               type: 'button',
               class: 'icon-btn dismiss',
-              title: 'Dismiss from the inbox',
+              title: 'Dismiss from the inbox; it stays under Dismissed',
               'aria-label': `Dismiss PR #${s.pr.number} from the inbox`,
               onclick: async () => {
                   await post(`/api/analyses/${encodeURIComponent(s.id)}/dismiss`);
@@ -93,7 +100,7 @@ function prRow(s, { dismissedView }) {
         h('div', { class: 'col-claims' }, coverage(s.counts)),
         h('div', { class: 'col-unclaimed' }, h('span', { class: 'unclaimed-count' }, s.unclaimed), ' ', h('span', { class: 'meta' }, s.unclaimed === 1 ? 'change' : 'changes')),
         h('div', { class: 'col-status' },
-            dismissedView ? h('span', { class: 'meta' }, s.dismissReason === 'merged' ? 'Merged' : 'Dismissed') : badge(STATUS[s.status]),
+            dismissedView ? h('span', { class: 'meta' }, 'Dismissed') : h('span', { class: 'status-tags' }, badge(STATUS[s.status]), prStateTag(s.prState)),
             actions,
         ),
     );
@@ -188,7 +195,6 @@ export async function renderInbox(root, params) {
             h('span', null, h('span', { class: 'swatch', style: 'background: var(--ir-green)' }), 'delivered'),
             h('span', null, h('span', { class: 'swatch', style: 'background: var(--ir-orange)' }), 'partial'),
             h('span', null, h('span', { class: 'swatch', style: 'border: 1.5px solid var(--ir-pink)' }), 'missing'),
-            h('span', null, 'Merged PRs leave the inbox on their own.'),
         );
     };
     await rerender();

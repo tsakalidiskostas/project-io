@@ -215,6 +215,7 @@ button:disabled { opacity: 0.55; cursor: progress; }
 .col-pr a { font-weight: 700; text-decoration: none; color: var(--ir-text); }
 .col-pr a:hover { color: var(--ir-cyan); }
 .issue-key { color: var(--ir-purple-text); font-weight: 700; font-family: var(--ir-font-label); }
+.status-tags { display: flex; flex-wrap: wrap; gap: var(--ir-space-1); }
 .unclaimed-count { color: var(--ir-purple-text); font-weight: 700; }
 .stale { color: var(--ir-orange); font-size: var(--ir-fs-meta); }
 .stale button { font: inherit; color: var(--ir-cyan); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }

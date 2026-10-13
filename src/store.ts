@@ -26,6 +26,7 @@ export interface AnalysisSummary {
     unclaimed: number;
     status: Status;
     stale: boolean;
+    prState: string | null;
     dismissReason: string | null;
 }
 
@@ -34,6 +35,7 @@ interface Row {
     json: string;
     created_at: string;
     head_oid: string | null;
+    pr_state: string | null;
     dismiss_reason: string | null;
 }
 
@@ -63,6 +65,9 @@ export function openStore(file = DEFAULT_DB) {
     db.exec(`INSERT INTO runs (analysis_id, n, created_at, json)
              SELECT id, 1, created_at, json FROM analyses WHERE id NOT IN (SELECT analysis_id FROM runs)`);
 
+    // Merged PRs used to leave the inbox on their own; now only the user dismisses, so bring those back.
+    db.exec(`UPDATE analyses SET dismissed_at = NULL, dismiss_reason = NULL WHERE dismiss_reason = 'merged'`);
+
     const latestRun = (id: string): number =>
         ((db.prepare('SELECT MAX(n) AS n FROM runs WHERE analysis_id = ?').get(id) as { n: number | null }).n ?? 0);
     const serialise = (a: Analysis) => JSON.stringify({ ...a, status: deriveStatus(a) });
@@ -83,6 +88,7 @@ export function openStore(file = DEFAULT_DB) {
             unclaimed: a.unclaimed.filter(u => !u.expected).length,
             status: deriveStatus(a),
             stale: row.head_oid !== null && row.head_oid !== a.pr.headRefOid,
+            prState: row.pr_state,
             dismissReason: row.dismiss_reason,
         };
     };
@@ -120,7 +126,7 @@ export function openStore(file = DEFAULT_DB) {
 
         list({ dismissed = false } = {}): AnalysisSummary[] {
             const where = dismissed ? 'dismissed_at IS NOT NULL' : 'dismissed_at IS NULL';
-            const rows = db.prepare(`SELECT id, json, created_at, head_oid, dismiss_reason FROM analyses WHERE ${where} ORDER BY created_at DESC`).all();
+            const rows = db.prepare(`SELECT id, json, created_at, head_oid, pr_state, dismiss_reason FROM analyses WHERE ${where} ORDER BY created_at DESC`).all();
             return (rows as unknown as Row[]).map(summarise);
         },
 
@@ -135,7 +141,7 @@ export function openStore(file = DEFAULT_DB) {
             return this.get(id, n);
         },
 
-        dismiss(id: string, reason: 'manual' | 'merged'): void {
+        dismiss(id: string, reason: 'manual'): void {
             db.prepare('UPDATE analyses SET dismissed_at = ?, dismiss_reason = ? WHERE id = ?').run(new Date().toISOString(), reason, checkId(id));
         },
 
@@ -145,12 +151,6 @@ export function openStore(file = DEFAULT_DB) {
 
         recordPrState(id: string, state: string, headOid: string): void {
             db.prepare('UPDATE analyses SET pr_state = ?, head_oid = ?, state_checked_at = ? WHERE id = ?').run(state, headOid, Date.now(), checkId(id));
-            if (state === 'MERGED') {
-                db.prepare(`UPDATE analyses SET dismissed_at = ?, dismiss_reason = 'merged' WHERE id = ? AND dismissed_at IS NULL`).run(
-                    new Date().toISOString(),
-                    id,
-                );
-            }
         },
 
         // Unknown or invalid stored values fall back to auto rather than failing an analysis.
@@ -168,7 +168,9 @@ export function openStore(file = DEFAULT_DB) {
 
         dueForStateCheck(maxAgeMs: number): string[] {
             const rows = db
-                .prepare('SELECT id FROM analyses WHERE dismissed_at IS NULL AND (state_checked_at IS NULL OR state_checked_at < ?)')
+                // A merged or closed PR cannot change any more, so it is never checked again.
+                .prepare(`SELECT id FROM analyses WHERE dismissed_at IS NULL AND (pr_state IS NULL OR pr_state = 'OPEN')
+                          AND (state_checked_at IS NULL OR state_checked_at < ?)`)
                 .all(Date.now() - maxAgeMs);
             return (rows as unknown as { id: string }[]).map(r => r.id);
         },

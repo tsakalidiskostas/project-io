@@ -69,12 +69,37 @@ test('summaries carry counts, status, and whether the PR moved on since analysis
     assert.equal(s.stale, true);
 });
 
-test('merged PRs are offloaded automatically', () => {
+test('merged PRs stay in the inbox, marked merged, until dismissed by hand', () => {
     const store = fresh();
     store.save(analysis(1));
     store.recordPrState('o__r__1', 'MERGED', 'abc');
-    assert.equal(store.list().length, 0);
-    assert.equal(store.list({ dismissed: true })[0].dismissReason, 'merged');
+    const [s1] = store.list();
+    assert.equal(s1.prState, 'MERGED');
+    assert.equal(store.list({ dismissed: true }).length, 0);
+});
+
+test('merged and closed PRs are not state-checked again', () => {
+    const store = fresh();
+    store.save(analysis(1));
+    store.save(analysis(2));
+    store.recordPrState('o__r__1', 'MERGED', 'abc');
+    store.recordPrState('o__r__2', 'CLOSED', 'abc');
+    assert.deepEqual(store.dueForStateCheck(0), []);
+});
+
+test('PRs that were auto-dismissed for being merged come back to the inbox', async () => {
+    const file = path.join(mkdtempSync(path.join(os.tmpdir(), 'io-store-')), 'io.db');
+    const store = openStore(file);
+    store.save(analysis(1));
+    store.save(analysis(2));
+    store.dismiss('o__r__2', 'manual');
+    const { DatabaseSync } = await import('node:sqlite');
+    const db = new DatabaseSync(file);
+    db.prepare("UPDATE analyses SET dismissed_at = '2026-10-12', dismiss_reason = 'merged' WHERE id = 'o__r__1'").run();
+    db.close();
+    const reopened = openStore(file);
+    assert.deepEqual(reopened.list().map(x => x.id), ['o__r__1']);
+    assert.deepEqual(reopened.list({ dismissed: true }).map(x => x.id), ['o__r__2']);
 });
 
 test('only PRs not checked recently are due a state check', () => {
