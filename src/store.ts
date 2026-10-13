@@ -166,6 +166,18 @@ export function openStore(file = DEFAULT_DB) {
             );
         },
 
+        // The MCP tool names the last session with connectors saw; see mcp-trim.ts.
+        mcpInventory(): string[] {
+            const row = db.prepare("SELECT json FROM settings WHERE key = 'mcpInventory'").get() as { json: string } | undefined;
+            return row ? JSON.parse(row.json) : [];
+        },
+
+        saveMcpInventory(tools: string[]): void {
+            const mcp = tools.filter(t => t.startsWith('mcp__'));
+            if (!mcp.length) return;
+            db.prepare("INSERT INTO settings (key, json) VALUES ('mcpInventory', ?) ON CONFLICT(key) DO UPDATE SET json = excluded.json").run(JSON.stringify(mcp));
+        },
+
         dueForStateCheck(maxAgeMs: number): string[] {
             const rows = db
                 // A merged or closed PR cannot change any more, so it is never checked again.

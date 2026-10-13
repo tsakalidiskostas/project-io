@@ -10,6 +10,7 @@ import { extractIssueKey } from './linear.ts';
 import { chooseExplainModel, COMMENTS_MODEL, INTENT_MODEL, resolveChoice } from './model-choice.ts';
 import { analysisId, defaultStore } from './store.ts';
 import { planUsage } from './usage.ts';
+import { intentDisallowedTools } from './mcp-trim.ts';
 
 // Roughly 150k tokens of diff. Past that the model reads the rest through read_file instead.
 const DIFF_BUDGET_CHARS = 600_000;
@@ -172,12 +173,16 @@ export async function analyzePullRequest(input: string, onEvent: (e: AnalyzeEven
             systemPrompt: INTENT_SYSTEM,
             settingSources: [],
             tools: ['ToolSearch'],
+            disallowedTools: intentDisallowedTools(defaultStore().mcpInventory()),
             canUseTool: intentTools,
             outputFormat: { type: 'json_schema', schema: toOutputSchema(IntentOutput) },
             maxTurns: 15,
         },
         onEvent: e => {
-            if (e.type === 'session') ranModel.intent = e.model;
+            if (e.type === 'session') {
+                ranModel.intent = e.model;
+                defaultStore().saveMcpInventory(e.tools);
+            }
             onEvent(e);
         },
         signal,
@@ -216,6 +221,7 @@ ${diff}
             settingSources: [],
             tools: [],
             mcpServers: { io: repoTools(pr) },
+            strictMcpConfig: true,
             canUseTool: verifyTools,
             outputFormat: { type: 'json_schema', schema: toOutputSchema(VerifyOutput) },
             maxTurns: 60,
@@ -345,6 +351,7 @@ ${diff}
                 settingSources: [],
                 tools: [],
                 mcpServers: { io: repoTools(pr) },
+                strictMcpConfig: true,
                 canUseTool: verifyTools,
                 outputFormat: { type: 'json_schema', schema: toOutputSchema(FlowOutput) },
                 maxTurns: 40,

@@ -5,7 +5,7 @@ import { sessionStats, type SessionStats } from './stats.ts';
 
 export type LoopEvent =
     | ({ type: 'model' } & ModelChoice)
-    | { type: 'session'; model: string; auth: string; mcpServers: { name: string; status: string }[] }
+    | { type: 'session'; model: string; auth: string; mcpServers: { name: string; status: string }[]; tools: string[] }
     | { type: 'text'; delta: string }
     | { type: 'tool'; name: string; input: unknown };
 
@@ -76,6 +76,7 @@ function handle(message: SDKMessage, onEvent: (e: LoopEvent) => void): AgentResu
         onEvent({
             type: 'session',
             model: message.model,
+            tools: message.tools,
             auth: message.apiKeySource === 'none' ? 'Claude login' : message.apiKeySource,
             mcpServers: message.mcp_servers.map(s => ({ name: s.name, status: s.status })),
         });
