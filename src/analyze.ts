@@ -11,9 +11,14 @@ import { chooseExplainModel, COMMENTS_MODEL, INTENT_MODEL, resolveChoice } from 
 import { analysisId, defaultStore } from './store.ts';
 import { planUsage } from './usage.ts';
 import { intentDisallowedTools } from './mcp-trim.ts';
+import { choosePrefetch, isNoisePath, numbered, splitNoise } from './diff-prep.ts';
 
 // Roughly 150k tokens of diff. Past that the model reads the rest through read_file instead.
 const DIFF_BUDGET_CHARS = 600_000;
+// Changed files handed over at the head commit so the claims check needs few read_file turns.
+// About 30k tokens at most: past that, reading only what it needs is cheaper than carrying it all.
+const PREFETCH_BUDGET = { budget: 120_000, perFile: 40_000 };
+const PREFETCH_MAX_FILES = 25;
 
 export function budgetDiff(diff: string, maxChars: number): { text: string; omittedFiles: string[] } {
     if (diff.length <= maxChars) return { text: diff, omittedFiles: [] };
@@ -43,6 +48,8 @@ Return:
 
 const VERIFY_SYSTEM = `You check a pull request against claims that were extracted from its issue and description before the diff was read. You get the claims, the PR metadata, its commits and its diff, and you can read any file at the base or head commit and search the repository. A diff shows lines, not the flow they sit in: read callers and surrounding code before you judge.
 
+The most-changed files are already included at the head commit, with line numbers: use those numbers and do not read those files again. Read other files, or the base side, with read_file, and batch independent reads into parallel calls in one turn.
+
 For every claim, same id and order:
 - verdict: delivered (the code does what the claim says), partial (some of it, or with a gap that changes behaviour), missing (no code does it), unverifiable (code alone cannot settle it).
 - codeDoes: one short paragraph on what the code actually does, naming real identifiers.
@@ -55,6 +62,8 @@ verdict.summary: one or two plain sentences a reviewer reads first.
 Be concrete and brief. When the code and a claim disagree, say exactly how.`;
 
 const FLOW_SYSTEM = `You draw how a pull request changes behaviour, for a reviewer. You get the claims it was checked against, with their verdicts, the changes no claim explains, the PR metadata and its diff, and you can read any file at the base or head commit and search the repository.
+
+Batch independent reads into parallel calls in one turn.
 
 flow: one graph of the behaviour this PR touches, before and after, 6–18 nodes, built from the code rather than the description: start/end, steps, decisions. Read the base side to see how it worked before.
 - change on every node and edge: "added" exists only after this PR, "removed" only before, "changed" in both but behaves differently, else "unchanged".
@@ -190,8 +199,26 @@ export async function analyzePullRequest(input: string, onEvent: (e: AnalyzeEven
     });
     const intent = IntentOutput.parse(intentRun.structured);
 
-    const { text: diff, omittedFiles } = budgetDiff(pr.diff, DIFF_BUDGET_CHARS);
-    const choice = resolveChoice(chooseExplainModel({ diffChars: pr.diff.length, files: pr.files.map(f => f.path) }), models.verify);
+    const { diff: meaningful, noise } = splitNoise(pr.diff);
+    const { text: diff, omittedFiles } = budgetDiff(meaningful, DIFF_BUDGET_CHARS);
+    // Size the model on the diff that matters: a regenerated lockfile should not buy a bigger model.
+    const realFiles = pr.files.filter(f => !isNoisePath(f.path));
+    const choice = resolveChoice(chooseExplainModel({ diffChars: meaningful.length, files: realFiles.map(f => f.path) }), models.verify);
+
+    const files = new Map<string, Promise<string>>();
+    const fileAtHead = (p: string) => {
+        if (!files.has(p)) files.set(p, readRepoFile(ref, pr.headRefOid, p));
+        return files.get(p)!;
+    };
+    onEvent({ type: 'phase', phase: 'verify', label: 'Fetching the changed files' });
+    const candidates = [...realFiles].sort((a, b) => b.additions + b.deletions - (a.additions + a.deletions)).slice(0, PREFETCH_MAX_FILES);
+    const fetched = await Promise.all(candidates.map(async f => ({ path: f.path, changes: f.additions + f.deletions, text: await fileAtHead(f.path) })));
+    const present = fetched.filter(f => !f.text.startsWith('ERROR:'));
+    const chosen = new Set(choosePrefetch(present.map(f => ({ path: f.path, changes: f.changes, size: f.text.length })), PREFETCH_BUDGET));
+    const prefetched = present.filter(f => chosen.has(f.path));
+    const noiseNote = noise.length ? `\n\nGenerated, lock, snapshot or binary files, left out of the diff:\n${noise.join('\n')}` : '';
+    const filesAtHead = prefetched.map(f => `<file path="${f.path}">\n${numbered(f.text)}\n</file>`).join('\n\n');
+
     onEvent({ type: 'phase', phase: 'verify', label: 'Checking each claim against the code' });
     const verifyRun = await runAgent({
         prompt: `<claims>\n${JSON.stringify(intent.claims, null, 1)}\n</claims>
@@ -208,8 +235,12 @@ ${pr.commits.map(c => `- ${c.messageHeadline}${c.messageBody ? `\n  ${c.messageB
 <files_changed>
 ${pr.files.map(f => `${f.path} (+${f.additions} −${f.deletions})`).join('\n')}${
             omittedFiles.length ? `\n\nLeft out of the diff below to fit; read with read_file if they matter:\n${omittedFiles.join('\n')}` : ''
-        }
+        }${noiseNote}
 </files_changed>
+
+<files_at_head>
+${filesAtHead}
+</files_at_head>
 
 <diff>
 ${diff}
@@ -236,11 +267,6 @@ ${diff}
 
     onEvent({ type: 'phase', phase: 'excerpts', label: 'Fetching the code excerpts' });
     const added = addedLinesByFile(pr.diff);
-    const files = new Map<string, Promise<string>>();
-    const fileAtHead = (p: string) => {
-        if (!files.has(p)) files.set(p, readRepoFile(ref, pr.headRefOid, p));
-        return files.get(p)!;
-    };
     const verified = new Map(verify.claims.map(c => [c.id, c]));
 
     const analysis: Analysis = {
@@ -326,8 +352,9 @@ export function buildFlow(id: string, run: number, onEvent: (e: ExtraEvent) => v
         const live = await fetchPullRequest({ owner: a.pr.owner, repo: a.pr.repo, number: a.pr.number });
         // Read files at the commits this run analysed, even if the PR has moved on since.
         const pr = { ...live, headRefOid: a.pr.headRefOid, baseRefOid: a.pr.baseRefOid ?? live.baseRefOid };
-        const { text: diff } = budgetDiff(pr.diff, DIFF_BUDGET_CHARS);
-        const choice = resolveChoice(chooseExplainModel({ diffChars: pr.diff.length, files: pr.files.map(f => f.path) }), store.modelSettings().flow);
+        const { diff: meaningful } = splitNoise(pr.diff);
+        const { text: diff } = budgetDiff(meaningful, DIFF_BUDGET_CHARS);
+        const choice = resolveChoice(chooseExplainModel({ diffChars: meaningful.length, files: pr.files.filter(f => !isNoisePath(f.path)).map(f => f.path) }), store.modelSettings().flow);
         onEvent({ type: 'phase', label: 'Drawing the before and after' });
         const result = await runAgent({
             prompt: `<claims>\n${claimsForPrompt(a)}\n</claims>
