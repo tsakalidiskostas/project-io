@@ -72,6 +72,11 @@ function withViews(a: Analysis, run: number) {
     return {
         ...a,
         mermaid: flowToMermaid(a.flow, verdicts),
+        mermaidViews: {
+            diff: flowToMermaid(a.flow, verdicts, 'diff'),
+            before: flowToMermaid(a.flow, verdicts, 'before'),
+            after: flowToMermaid(a.flow, verdicts, 'after'),
+        },
         summaryMarkdown: reviewSummary(a),
         run,
         runs,

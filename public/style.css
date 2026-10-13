@@ -371,6 +371,38 @@ button:disabled { opacity: 0.55; cursor: progress; }
 .flow-notes .card { flex: 1 1 320px; }
 .flow-notes p { margin: 0; }
 
+.flow-controls { display: flex; flex-direction: column; gap: var(--ir-space-3); }
+.flow-control-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ir-space-3); }
+.flow-control-row > .eyebrow { color: var(--ir-text-muted); min-width: 52px; }
+.path-chips { display: flex; flex-wrap: wrap; gap: var(--ir-space-2); }
+.path-chip {
+    display: inline-flex; align-items: center; gap: var(--ir-space-2);
+    min-height: 40px; padding: 0 var(--ir-space-4);
+    border-radius: var(--ir-radius-pill); border: 1.5px solid var(--ir-border);
+    background: var(--ir-surface); color: var(--ir-text); font: inherit; font-weight: 500; cursor: pointer;
+}
+.path-chip .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--v); }
+.path-chip:hover, .path-chip:focus-visible { border-color: var(--ir-yellow); }
+.path-chip[aria-pressed="true"] { border-color: var(--ir-yellow); background: rgba(230, 219, 116, 0.12); }
+.path-note { min-height: 1.5em; }
+
+/* Path highlighting: everything off the path fades, the path itself takes the pointing colour. */
+.diagram-frame { position: relative; }
+.diagram svg g.node, .diagram svg .edgePaths path, .diagram svg .edgeLabel { transition: opacity .15s; }
+.diagram svg.dimmed g.node:not(.on), .diagram svg.dimmed .edgePaths path:not(.on), .diagram svg.dimmed .edgeLabel:not(.on) { opacity: 0.15; }
+.diagram svg.dimmed .edgePaths path.on { stroke: var(--ir-yellow) !important; stroke-width: 3px !important; }
+.diagram svg g.node.on { filter: drop-shadow(0 0 6px rgba(230, 219, 116, 0.55)); }
+.diagram svg g.node.has-code { cursor: pointer; }
+.diagram svg g.node:focus-visible { outline: none; filter: drop-shadow(0 0 4px rgba(102, 217, 239, 0.8)); }
+.flow-tip {
+    position: absolute; z-index: 5; max-width: 320px; pointer-events: none;
+    display: flex; flex-direction: column; gap: 4px;
+    background: var(--ir-surface-raised); border: 1px solid var(--ir-border); border-radius: var(--ir-radius-card);
+    padding: var(--ir-space-2) var(--ir-space-3); font-size: var(--ir-fs-meta); box-shadow: var(--ir-shadow-float);
+}
+.flow-tip code { color: var(--ir-cyan); overflow-wrap: anywhere; }
+.flow-tip .tip-unclaimed { color: var(--ir-purple-text); }
+
 /* ---------- Settings ---------- */
 .rows { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
 .rows li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ir-space-2) var(--ir-space-4); padding: var(--ir-space-3) 0; border-top: 1px solid var(--ir-divider); }

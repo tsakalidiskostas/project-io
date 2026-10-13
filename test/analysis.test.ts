@@ -84,12 +84,12 @@ test('renders flow graph data as Mermaid, styled by verdict and safe to embed', 
                 { from: 'retry?', to: 'send', label: 'yes', note: '429 lands here' },
                 { from: 'retry?', to: 'dlq', label: 'no', note: '' },
             ],
-        },
+        } as never, // a flow saved before change markers and paths existed
         { C1: 'delivered', C2: 'partial', C3: 'missing' },
     );
     assert.match(mermaid, /^flowchart TD/);
     assert.match(mermaid, /n_start\(\["Webhook #quot;arrives#quot;"\]\)/);
-    assert.match(mermaid, /n_retry_\{"attempt &lt; 5"\}/);
+    assert.match(mermaid, /n_retry_\{"attempt < 5"\}/);
     assert.match(mermaid, /class n_send delivered/);
     assert.match(mermaid, /class n_retry_ partial/);
     assert.match(mermaid, /class n_dlq missing/);
@@ -123,4 +123,58 @@ test('output schemas carry no $schema marker and are plain objects', async () =>
         assert.equal(schema.$schema, undefined);
         assert.equal(schema.type, 'object');
     }
+});
+
+const diffFlow = {
+    before: '',
+    nodes: [
+        { id: 'start', kind: 'start', label: 'Start', claimId: '', unclaimedNote: '', change: 'unchanged', codePath: '', codeLine: 0 },
+        { id: 'gate', kind: 'decision', label: 'Gate', claimId: 'C1', unclaimedNote: '', change: 'added', codePath: 'gate.ts', codeLine: 12 },
+        { id: 'effects', kind: 'step', label: 'Effect chain', claimId: '', unclaimedNote: '', change: 'removed', codePath: 'effects.ts', codeLine: 40 },
+        { id: 'open', kind: 'end', label: 'Open', claimId: '', unclaimedNote: '', change: 'changed', codePath: '', codeLine: 0 },
+    ],
+    edges: [
+        { from: 'start', to: 'gate', label: '', note: '', change: 'added' },
+        { from: 'start', to: 'effects', label: '', note: '', change: 'removed' },
+        { from: 'gate', to: 'open', label: 'yes', note: '', change: 'added' },
+        { from: 'effects', to: 'open', label: '', note: '', change: 'removed' },
+    ],
+    scenarios: [
+        { id: 'before', label: 'Before · opens', era: 'before', outcome: 'success', description: 'd', steps: ['start', 'effects', 'open'] },
+        { id: 'after', label: 'After · opens', era: 'after', outcome: 'success', description: 'd', steps: ['start', 'gate', 'open'] },
+        { id: 'bad', label: 'Bad', era: 'after', outcome: 'failure', description: 'd', steps: ['start', 'ghost'] },
+    ],
+} as const;
+
+test('diff view shows every node, marking added, removed and changed ones', async () => {
+    const { flowToMermaid } = await import('../src/analysis.ts');
+    const m = flowToMermaid(diffFlow as never, { C1: 'delivered' }, 'diff');
+    assert.match(m, /n_gate\{"＋ Gate"\}/, 'full-width plus: Mermaid reads "+ " as a list item and drops the label');
+    assert.match(m, /n_effects\("− Effect chain"\)/);
+    assert.match(m, /class n_gate added/);
+    assert.match(m, /class n_gate delivered/);
+    assert.match(m, /class n_effects removed/);
+    assert.match(m, /class n_open changed/);
+    assert.match(m, /linkStyle 1 stroke:#A6A28C/, 'removed edges are drawn faded');
+});
+
+test('before view drops added steps; after view drops removed ones', async () => {
+    const { flowToMermaid } = await import('../src/analysis.ts');
+    const before = flowToMermaid(diffFlow as never, {}, 'before');
+    const after = flowToMermaid(diffFlow as never, {}, 'after');
+    assert.doesNotMatch(before, /n_gate/);
+    assert.match(before, /n_effects\("Effect chain"\)/, 'no diff prefix outside the diff view');
+    assert.doesNotMatch(after, /n_effects/);
+    assert.match(after, /n_start --> n_gate/);
+});
+
+test('flows from before this feature render as before', async () => {
+    const { flowToMermaid } = await import('../src/analysis.ts');
+    const legacy = { before: '', nodes: [{ id: 'a', kind: 'step', label: 'A', claimId: '', unclaimedNote: '' }], edges: [] };
+    assert.match(flowToMermaid(legacy as never, {}, 'diff'), /n_a\("A"\)/);
+});
+
+test('paths that name unknown steps are dropped', async () => {
+    const { cleanFlow } = await import('../src/analysis.ts');
+    assert.deepEqual(cleanFlow(diffFlow as never).scenarios.map(s => s.id), ['before', 'after']);
 });

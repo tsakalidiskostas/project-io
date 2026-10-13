@@ -4,7 +4,7 @@ import path from 'node:path';
 import { createSdkMcpServer, tool, type CanUseTool } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
 import { isReadOnlyToolName, runAgent, type LoopEvent } from './agent-loop.ts';
-import { addedLinesByFile, buildExcerpt, IntentOutput, toOutputSchema, issueKeyFromLinearUrl, VerifyOutput, type Analysis } from './analysis.ts';
+import { addedLinesByFile, buildExcerpt, cleanFlow, IntentOutput, toOutputSchema, issueKeyFromLinearUrl, VerifyOutput, type Analysis } from './analysis.ts';
 import { fetchPullRequest, findPrsForIssue, parsePrRef, readRepoFile, searchRepoCode, type PrRef, type PullRequest } from './github.ts';
 import { extractIssueKey } from './linear.ts';
 import { chooseExplainModel, INTENT_MODEL, resolveChoice } from './model-choice.ts';
@@ -50,7 +50,13 @@ For every claim, same id and order:
 
 unclaimed: changes in the diff that no claim explains and a reviewer should know about — behaviour, not formatting or renames — each pointing at a head-side line.
 verdict.summary: one or two plain sentences a reviewer reads first.
-flow: the behaviour after this PR as a small graph of 5–14 nodes, built from the code rather than the description: start/end, steps, decisions. Set claimId on nodes that fulfil a claim, and add a node where each missing claim's step would sit, with its claimId, so the gap shows. Put unclaimedNote on the node an unclaimed change touches. Edge labels are "yes"/"no" or short conditions; an edge note marks where partial behaviour goes wrong. flow.before: two or three sentences on how it worked before.
+flow: one graph of the behaviour this PR touches, before and after, 6–18 nodes, built from the code rather than the description: start/end, steps, decisions. Read the base side to see how it worked before.
+- change on every node and edge: "added" exists only after this PR, "removed" only before, "changed" in both but behaves differently, else "unchanged".
+- Set claimId on nodes that fulfil a claim, and add a node where each missing claim's step would sit, with its claimId, so the gap shows. Put unclaimedNote on the node an unclaimed change touches.
+- codePath and codeLine: where the step is implemented, head side, or base side for a removed step; "" and 0 when no single place fits.
+- Edge labels are "yes"/"no" or short conditions; an edge note marks where partial behaviour goes wrong.
+- scenarios: the two to six paths a reviewer would want to compare, e.g. "Before · purchase succeeds", "After · purchase succeeds", "After · identity check denied". A before path uses only unchanged, changed and removed nodes; an after path only unchanged, changed and added ones. steps lists node ids from start to end, each consecutive pair joined by an edge.
+flow.before: two or three sentences on how it worked before.
 
 Be concrete and brief. When the code and a claim disagree, say exactly how.`;
 
@@ -228,6 +234,7 @@ ${diff}
             url: pr.url,
             author: pr.author,
             headRefOid: pr.headRefOid,
+            baseRefOid: pr.baseRefOid,
             filesChanged: pr.changedFiles,
             additions: pr.additions,
             deletions: pr.deletions,
@@ -251,7 +258,7 @@ ${diff}
             }),
         ),
         unclaimed: verify.unclaimed.map(u => ({ ...u, expected: false })),
-        flow: verify.flow,
+        flow: cleanFlow(verify.flow),
         status: 'review',
     };
     defaultStore().save(analysis);

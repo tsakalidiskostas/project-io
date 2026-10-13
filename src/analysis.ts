@@ -44,21 +44,42 @@ const ExcerptSpec = z.object({
 });
 export type ExcerptSpec = z.infer<typeof ExcerptSpec>;
 
+const Change = z.enum(['unchanged', 'added', 'removed', 'changed']).describe('added: only after this PR; removed: only before; changed: in both but behaves differently');
+
 const FlowNode = z.object({
     id: z.string(),
     kind: z.enum(['start', 'step', 'decision', 'end']),
     label: z.string(),
     claimId: z.string().describe('the claim this node fulfils or is missing for; "" if none'),
     unclaimedNote: z.string().describe('short note when this node carries an unclaimed change; "" if none'),
+    change: Change,
+    codePath: z.string().describe('file that implements this step: head side, or base side for a removed step; "" if none'),
+    codeLine: z.number().int().describe('line in codePath; 0 if none'),
 });
 const FlowEdge = z.object({
     from: z.string(),
     to: z.string(),
     label: z.string(),
     note: z.string().describe('where partial behaviour goes wrong on this edge; "" if none'),
+    change: Change,
 });
-export const Flow = z.object({ before: z.string(), nodes: z.array(FlowNode), edges: z.array(FlowEdge) });
+const Scenario = z.object({
+    id: z.string(),
+    label: z.string().describe('e.g. "Before · purchase succeeds", "After · identity denied"'),
+    era: z.enum(['before', 'after']),
+    outcome: z.enum(['success', 'failure', 'neutral']),
+    description: z.string().describe('one sentence'),
+    steps: z.array(z.string()).describe('node ids in order, start to end, each consecutive pair joined by an edge'),
+});
+export const Flow = z.object({ before: z.string(), nodes: z.array(FlowNode), edges: z.array(FlowEdge), scenarios: z.array(Scenario) });
 export type Flow = z.infer<typeof Flow>;
+export type FlowView = 'diff' | 'before' | 'after';
+
+// Paths that name a step the graph does not have cannot be highlighted, so they are dropped.
+export function cleanFlow(flow: Flow): Flow {
+    const ids = new Set(flow.nodes.map(n => n.id));
+    return { ...flow, scenarios: flow.scenarios.filter(s => s.steps.length > 1 && s.steps.every(id => ids.has(id))) };
+}
 
 // Phase 2: what the code actually does, claim by claim.
 export const VerifyOutput = z.object({
@@ -117,6 +138,8 @@ export interface Analysis {
         url: string;
         author: string;
         headRefOid: string;
+        // Absent on analyses saved before flows linked removed steps to the base commit.
+        baseRefOid?: string;
         filesChanged: number;
         additions: number;
         deletions: number;
@@ -186,32 +209,57 @@ export function buildExcerpt(fileText: string, spec: ExcerptSpec, added: Set<num
 }
 
 const nodeId = (id: string) => `n_${id.replace(/[^A-Za-z0-9_]/g, '_')}`;
-// Mermaid labels are quoted; #quot; is Mermaid's own escape, and < > become entities so a label
-// can never open markup in the rendered SVG.
-const label = (text: string) => `"${text.replaceAll('"', '#quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')}"`;
+// Labels are quoted, with #quot; (Mermaid's own escape) for quotes. Mermaid escapes the rest itself at
+// securityLevel strict, and the UI sanitises the SVG, so < and > stay as written.
+const label = (text: string) => `"${text.replaceAll('"', '#quot;')}"`;
 
-export function flowToMermaid(flow: Flow, verdicts: Record<string, Verdict>): string {
+// Full-width plus: Mermaid parses a label starting "+ " as a Markdown list item and draws nothing.
+const DIFF_PREFIX = { added: '＋ ', removed: '− ', changed: '', unchanged: '' } as const;
+
+// Flows saved before change markers existed have none; treat every part as unchanged.
+export function flowToMermaid(flow: Flow, verdicts: Record<string, Verdict>, view: FlowView = 'diff'): string {
     const lines = ['flowchart TD'];
+    const changeOf = (x: { change?: string }) => (x.change ?? 'unchanged') as keyof typeof DIFF_PREFIX;
+    const hidden = (x: { change?: string }) => (view === 'before' && changeOf(x) === 'added') || (view === 'after' && changeOf(x) === 'removed');
+    const nodes = flow.nodes.filter(n => !hidden(n));
+    const shown = new Set(nodes.map(n => n.id));
+    const edges = flow.edges.filter(e => !hidden(e) && shown.has(e.from) && shown.has(e.to));
     const verdictOf = (claimId: string) => (claimId ? verdicts[claimId] : undefined);
-    for (const node of flow.nodes) {
+    // linkStyle addresses links by the order they are written, unclaimed-note links included.
+    let link = 0;
+    const fadedLinks: number[] = [];
+
+    for (const node of nodes) {
         const id = nodeId(node.id);
-        const text = label(node.label);
+        const text = label(`${view === 'diff' ? DIFF_PREFIX[changeOf(node)] : ''}${node.label}`);
         const shape =
             node.kind === 'decision' ? `{${text}}` : node.kind === 'start' || node.kind === 'end' ? `([${text}])` : `(${text})`;
         lines.push(`    ${id}${shape}`);
         const verdict = verdictOf(node.claimId);
         if (verdict) lines.push(`    class ${id} ${verdict}`);
+        if (view === 'diff' && changeOf(node) !== 'unchanged') lines.push(`    class ${id} ${changeOf(node)}`);
         if (node.unclaimedNote) {
             const note = `u_${node.id.replace(/[^A-Za-z0-9_]/g, '_')}`;
             lines.push(`    ${note}[${label(node.unclaimedNote)}]:::unclaimed`, `    ${note} -.- ${id}`);
+            link++;
         }
     }
-    const missingIds = new Set(flow.nodes.filter(n => verdictOf(n.claimId) === 'missing').map(n => n.id));
-    for (const edge of flow.edges) {
+    const missingIds = new Set(nodes.filter(n => verdictOf(n.claimId) === 'missing').map(n => n.id));
+    for (const edge of edges) {
         const text = [edge.label, edge.note].filter(Boolean).join(' · ');
-        const arrow = missingIds.has(edge.to) ? '-.->' : '-->';
+        const removed = view === 'diff' && changeOf(edge) === 'removed';
+        const arrow = missingIds.has(edge.to) || removed ? '-.->' : '-->';
         lines.push(`    ${nodeId(edge.from)} ${arrow}${text ? `|${label(text)}|` : ''} ${nodeId(edge.to)}`);
+        if (removed) fadedLinks.push(link);
+        link++;
     }
+    for (const i of fadedLinks) lines.push(`    linkStyle ${i} stroke:#A6A28C,stroke-dasharray:4 4,opacity:0.6`);
+    lines.push(
+        // Fills match the code viewer: added lines green-tinted, key lines yellow-tinted.
+        '    classDef added fill:#26301C',
+        '    classDef changed fill:#49451F',
+        '    classDef removed fill:#1E1F1C,stroke:#A6A28C,stroke-dasharray:3 3,color:#A6A28C',
+    );
     lines.push(
         '    classDef delivered stroke:#A6E22E,stroke-width:2px',
         '    classDef partial fill:#5A3C17,stroke:#FD971F,stroke-width:2px',

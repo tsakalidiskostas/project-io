@@ -17,7 +17,7 @@ function analysis(number: number, overrides: Partial<Analysis> = {}): Analysis {
         verdict: { summary: '' },
         claims: [],
         unclaimed: [{ title: 'u', path: 'a', line: 1, why: 'w', expected: false }],
-        flow: { before: '', nodes: [], edges: [] },
+        flow: { before: '', nodes: [], edges: [], scenarios: [] },
         status: 'review',
         ...overrides,
     };
