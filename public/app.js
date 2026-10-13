@@ -1,5 +1,6 @@
 import { getAnalysis } from './js/api.js';
 import { hideApprove, showApprove } from './js/approve.js';
+import { hideBatch, showBatch } from './js/batch.js';
 import { initChat, setChatScreen } from './js/chat.js';
 import { $, h } from './js/dom.js';
 import { renderInbox } from './js/inbox.js';
@@ -27,7 +28,10 @@ async function route() {
     root.classList.toggle('pr-screen', screen === 'pr');
 
     try {
-        if (screen !== 'pr') hideApprove();
+        if (screen !== 'pr') {
+            hideApprove();
+            hideBatch();
+        }
         if (screen === 'work') {
             setChatScreen('Work');
             await (await import('./js/work.js')).renderWork(root, id);
@@ -40,6 +44,7 @@ async function route() {
             const label = { claims: 'Claims & code', flow: 'Behavior flow' }[tab] ?? 'Overview';
             setChatScreen(`PR #${analysis.pr.number} · ${label}`);
             showApprove(analysis);
+            showBatch(analysis);
             if (tab === 'claims') (await import('./js/claims.js')).renderClaims(root, analysis, claimId);
             else if (tab === 'flow') await (await import('./js/flow.js')).renderFlow(root, analysis);
             else (await import('./js/report.js')).renderReport(root, analysis);

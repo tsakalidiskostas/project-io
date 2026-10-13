@@ -1,9 +1,9 @@
 import { analysisApi, getAnalysis, post, prLink } from './api.js';
 import { extraJob } from './extras.js';
-import { badge, h, icon, VERDICT } from './dom.js';
+import { badge, h, icon, statusLine, VERDICT } from './dom.js';
 import { highlight } from './highlight.js';
 import { commentComposer, prHeader } from './pr-shell.js';
-import { workOnPr } from './work.js';
+import { batchButton } from './batch.js';
 
 // One draft per claim, kept while Io is open, so switching claims never loses an edit.
 const drafts = new Map();
@@ -97,10 +97,10 @@ function suggestedComment(a, c) {
             await post(analysisApi(a, '/comment'), { body, placement: where, path: suggestion?.path, line: suggestion?.line });
             return where === 'inline' ? `Posted · ${inline}` : `Posted · PR #${a.pr.number} conversation`;
         },
-        onSendToAgent: body => {
-            const at = inline ? ` at ${inline}` : c.excerpt ? ` in ${c.excerpt.path}` : '';
-            return workOnPr(a.id, `A review finding on this PR${at}, about “${c.title}”:\n\n${body}\n\nFix it in the code, run the relevant checks, and commit.`);
-        },
+        extraActions: ({ area, status }) =>
+            batchButton(a, `comment:${c.id}`, () => ({ label: `Review comment${inline ? ` on ${inline}` : ''}: ${c.title}`, text: area.value }), {
+                onError: message => statusLine(status, message, 'error'),
+            }),
     });
     area.addEventListener('input', () => drafts.set(key, area.value));
     panel.querySelector('h3').prepend(icon('comment'));

@@ -43,34 +43,6 @@ export async function workOnPr(analysisId, text) {
     }
 }
 
-// An editable instruction for the PR's work session, opened from a finding on the Overview.
-export function agentPanel(analysisId, text, onCancel) {
-    const area = h('textarea', { class: 'mono', rows: 6, 'aria-label': 'Instruction for the agent' });
-    area.value = text;
-    const status = h('span', { class: 'status-line', role: 'status' });
-    const send = h('button', {
-        type: 'button',
-        class: 'btn btn-primary',
-        onclick: async () => {
-            if (!area.value.trim()) return statusLine(status, 'Write what the agent should do first.', 'error');
-            send.disabled = true;
-            statusLine(status, 'Opening a work session…');
-            try {
-                await workOnPr(analysisId, area.value);
-            } catch (err) {
-                statusLine(status, err.message, 'error');
-                send.disabled = false;
-            }
-        },
-    }, 'Send to agent');
-    return h('section', { class: 'card composer-panel accent-orange', 'aria-label': 'Send to agent' },
-        h('h3', null, 'Send to agent'),
-        h('p', { class: 'meta' }, 'Goes to this PR’s work session, on its branch. Nothing is posted to GitHub.'),
-        area,
-        h('div', { class: 'actions' }, send, h('button', { type: 'button', class: 'btn btn-ghost', onclick: onCancel }, 'Cancel'), status),
-    );
-}
-
 export async function renderWork(root, id) {
     if (id) return renderSession(root, id);
     return renderList(root);

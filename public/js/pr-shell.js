@@ -1,7 +1,6 @@
 import { analysisApi, post, prLink } from './api.js';
 import { h, plural, statusLine } from './dom.js';
 import { startAnalysis } from './inbox.js';
-import { workOnPr } from './work.js';
 
 const TABS = [
     { key: 'overview', label: 'Overview', path: '' },
@@ -62,7 +61,7 @@ export function prHeader(a, active, { actions = true } = {}) {
     );
 }
 
-export function commentComposer({ title, kind, text, onPost, postLabel, placement, accent = 'accent-cyan', onCancel, onSendToAgent }) {
+export function commentComposer({ title, kind, text, onPost, postLabel, placement, accent = 'accent-cyan', onCancel, extraActions }) {
     const area = h('textarea', { class: 'mono', rows: 6, 'aria-label': 'Edit before posting', placeholder: 'Nothing to raise here. Write a comment if you want one.' });
     area.value = text;
     const status = h('span', { class: 'status-line', role: 'status' });
@@ -122,24 +121,7 @@ export function commentComposer({ title, kind, text, onPost, postLabel, placemen
                     }
                 },
             }, 'Rewrite'),
-            onSendToAgent
-                ? h('button', {
-                      type: 'button',
-                      class: 'btn btn-secondary accent-orange',
-                      title: 'Hand this to a Claude Code session on the PR’s branch to fix and commit, instead of posting it',
-                      onclick: async e => {
-                          if (!area.value.trim()) return statusLine(status, 'Write what needs fixing first.', 'error');
-                          e.currentTarget.disabled = true;
-                          statusLine(status, 'Opening a work session…');
-                          try {
-                              await onSendToAgent(area.value);
-                          } catch (err) {
-                              statusLine(status, err.message, 'error');
-                              e.target.disabled = false;
-                          }
-                      },
-                  }, 'Send to agent')
-                : null,
+            extraActions?.({ area, status }),
             onCancel ? h('button', { type: 'button', class: 'btn btn-ghost', onclick: onCancel }, 'Cancel') : null,
             status,
         ),
