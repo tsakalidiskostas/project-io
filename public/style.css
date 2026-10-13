@@ -277,6 +277,7 @@ button:disabled { opacity: 0.55; cursor: progress; }
 .claim-card-head h3 { flex: 1 1 240px; }
 .refs { font-size: var(--ir-fs-meta); color: var(--ir-text-muted); font-family: var(--ir-font-label); }
 .claim-card p { margin: 0; }
+.claim-card .agent-btn { min-height: 36px; margin-left: auto; }
 .chips { display: flex; flex-wrap: wrap; gap: var(--ir-space-2); align-items: center; }
 .chip {
     font-family: var(--ir-font-code); font-size: 13px; color: var(--ir-cyan);

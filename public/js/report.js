@@ -1,6 +1,7 @@
 import { analysisApi, post, prLink, setCachedAnalysis } from './api.js';
 import { badge, h, STATUS, VERDICT } from './dom.js';
 import { commentComposer, prHeader } from './pr-shell.js';
+import { agentPanel } from './work.js';
 
 const range = e => (e.startLine === e.endLine ? `L${e.startLine}` : `L${e.startLine}–${e.endLine}`);
 
@@ -31,20 +32,40 @@ function sourceCard(s) {
     );
 }
 
+// Opens or closes the agent panel in a card's holder.
+function toggleAgent(holder, analysisId, text) {
+    if (!holder.hidden) return void (holder.hidden = true);
+    holder.replaceChildren(agentPanel(analysisId, text, () => (holder.hidden = true)));
+    holder.hidden = false;
+}
+
+function claimInstruction(c) {
+    const where = c.evidence.length ? ` Related code: ${c.evidence.map(e => `${e.path} ${range(e)}`).join(', ')}.` : '';
+    return `This PR claims (${c.sourceRefs.join(', ')}): ${c.claimed}\n\nIo’s check found it ${c.verdict}: ${c.codeDoes}${where}\n\nComplete it in the code, run the relevant checks, and commit.`;
+}
+
 function claimCard(a, c) {
     const v = VERDICT[c.verdict];
+    const holder = h('div', { hidden: true });
+    const actionable = c.verdict === 'partial' || c.verdict === 'missing';
     return h('article', { class: `card claim-card ${v.cls}` },
         h('div', { class: 'claim-card-head' }, badge(v), h('h3', null, c.title), h('span', { class: 'refs' }, c.sourceRefs.join(' · '))),
         h('p', null, c.codeDoes),
         h('div', { class: 'chips' },
             c.evidence.length ? c.evidence.map(e => h('code', { class: 'chip' }, `${e.path} ${range(e)}`)) : h('code', { class: 'chip' }, 'No matching code'),
             h('a', { href: prLink(a, `/claims/${c.id}`) }, c.verdict === 'missing' ? 'See where it would go →' : 'See the code →'),
+            actionable
+                ? h('button', { type: 'button', class: 'btn btn-secondary accent-orange agent-btn', onclick: () => toggleAgent(holder, a.id, claimInstruction(c)) }, 'Send to agent')
+                : null,
         ),
+        holder,
     );
 }
 
 function unclaimedCard(a, u, index, rerender) {
     const composer = h('div', { hidden: true });
+    const agent = h('div', { hidden: true });
+    const instruction = `This PR changes ${u.path} line ${u.line} (${u.title}), which neither the issue nor the description mentions. ${u.why}\n\nFind out why it changed. If it looks unintended, revert it, run the relevant checks, and commit. If it is needed, explain why and change nothing.`;
     const toggle = async () => {
         const { analysis } = await post(analysisApi(a, `/unclaimed/${index}`), { expected: !u.expected });
         setCachedAnalysis(analysis);
@@ -77,10 +98,12 @@ function unclaimedCard(a, u, index, rerender) {
                 ? h('button', { type: 'button', class: 'btn btn-ghost', onclick: toggle }, 'Not expected after all')
                 : [
                       h('button', { type: 'button', class: 'btn btn-secondary accent-purple', onclick: ask }, 'Ask author why'),
+                      h('button', { type: 'button', class: 'btn btn-secondary accent-orange', onclick: () => toggleAgent(agent, a.id, instruction) }, 'Send to agent'),
                       h('button', { type: 'button', class: 'btn btn-ghost', onclick: toggle }, 'Mark as expected'),
                   ],
         ),
         composer,
+        agent,
     );
 }
 
