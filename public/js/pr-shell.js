@@ -31,7 +31,15 @@ export function prHeader(a, active, { actions = true } = {}) {
     return h('section', { class: 'pr-header', 'aria-label': 'Pull request' },
         h('a', { class: 'back', href: '#inbox' }, '← All pull requests'),
         h('div', { class: 'pr-title-line' }, h('h1', null, pr.title), runPicker),
-        h('div', { class: 'pr-title-row' }, h('div', null, meta), actionRow),
+        h('div', { class: 'pr-title-row' },
+            h('div', null,
+                meta,
+                a.costLabel
+                    ? h('p', { class: 'meta run-cost', title: a.costLabel.phases.join('\n') }, h('span', { class: 'eyebrow' }, 'Run cost'), ' ', a.costLabel.total)
+                    : null,
+            ),
+            actionRow,
+        ),
         summaryPanel,
         h('nav', { class: 'tabs', 'aria-label': 'Report sections' },
             TABS.map(t => h('a', { href: prLink(a, t.path), 'aria-current': t.key === active ? 'page' : null }, t.label)),

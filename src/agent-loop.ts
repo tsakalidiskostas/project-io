@@ -1,6 +1,7 @@
 import { query, type Options, type SDKMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { MODEL_IDS, type ModelChoice } from './model-choice.ts';
 import { ensureIoProfile, ioSessionEnv } from './profile.ts';
+import { sessionStats, type SessionStats } from './stats.ts';
 
 export type LoopEvent =
     | ({ type: 'model' } & ModelChoice)
@@ -32,6 +33,7 @@ async function* promptAfterDelay(prompt: string, finished: Promise<void>): Async
 export interface AgentResult {
     text: string;
     structured: unknown;
+    stats: SessionStats;
 }
 
 // Io never calls the Claude API itself: the Agent SDK spawns the Claude Code CLI as a subprocess and
@@ -94,7 +96,7 @@ function handle(message: SDKMessage, onEvent: (e: LoopEvent) => void): AgentResu
             const detail = message.subtype === 'success' ? message.result : message.errors.join('; ') || message.subtype;
             throw new Error(`Claude stopped: ${detail}`);
         }
-        return { text: message.result, structured: message.structured_output };
+        return { text: message.result, structured: message.structured_output, stats: sessionStats(message) };
     }
     return undefined;
 }

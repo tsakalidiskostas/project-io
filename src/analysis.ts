@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { SessionStats } from './stats.ts';
 
 // Shapes from docs/design/HANDOFF.md §1. Optional strings are '' rather than null to keep the
 // JSON schemas the sessions must satisfy simple.
@@ -130,6 +131,9 @@ export interface Analysis {
     // The model each phase actually ran, as Claude Code reported it. Absent on runs saved before
     // this was recorded; `model` then holds only the aliases.
     runInfo?: { intent: RunModel; verify: RunModel };
+    // What each phase cost, and the plan's session meter around the run. Absent on runs saved before
+    // this was measured; the meter readings are whole percents and include anything else running.
+    stats?: { phases: Record<string, SessionStats>; planBefore: number | null; planAfter: number | null };
     pr: {
         owner: string;
         repo: string;

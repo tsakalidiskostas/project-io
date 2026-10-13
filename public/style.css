@@ -306,6 +306,8 @@ button:disabled { opacity: 0.55; cursor: progress; }
 .pr-title-line h1 { flex: 1 1 480px; }
 .run-picker { flex: 0 0 auto; }
 .run-picker .select { min-width: 240px; }
+.run-cost { margin-top: var(--ir-space-1); }
+.run-cost .eyebrow { color: var(--ir-orange); }
 .run-sep { color: var(--ir-text-muted); }
 .run-label { color: var(--ir-text-muted); }
 

@@ -12,6 +12,7 @@ import { runOrThrow } from './run.ts';
 import { selfEdit } from './self-edit/agent.ts';
 import { revertLastSelfEdit } from './self-edit/git.ts';
 import { describeRun, modelDisplayName, ModelSettings, REWRITE_MODEL, resolveChoice } from './model-choice.ts';
+import { combineStats, describeStats } from './stats.ts';
 import { defaultStore } from './store.ts';
 import { planUsage } from './usage.ts';
 
@@ -66,6 +67,16 @@ function runLabel(r: { model: string; runInfo: Analysis['runInfo'] }): string {
     return `extracted claims with ${modelDisplayName(intent)}, claims vs code with ${modelDisplayName(verify ?? intent)}`;
 }
 
+function costLabel(a: Analysis): { total: string; phases: string[] } | null {
+    if (!a.stats) return null;
+    const { phases, planBefore, planAfter } = a.stats;
+    const meter = planBefore !== null && planAfter !== null ? ` · session ${planBefore}% → ${planAfter}%` : '';
+    return {
+        total: describeStats(combineStats(Object.values(phases))) + meter,
+        phases: Object.entries(phases).map(([name, s]) => `${name}: ${describeStats(s)}`),
+    };
+}
+
 function withViews(a: Analysis, run: number) {
     const verdicts = Object.fromEntries(a.claims.map(c => [c.id, c.verdict]));
     const runs = defaultStore().runs(a.id).map(r => ({ n: r.n, createdAt: r.createdAt, label: runLabel(r) }));
@@ -81,6 +92,7 @@ function withViews(a: Analysis, run: number) {
         run,
         runs,
         runLabel: runs.find(r => r.n === run)?.label ?? '',
+        costLabel: costLabel(a),
     };
 }
 

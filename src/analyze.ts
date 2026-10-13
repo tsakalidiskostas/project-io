@@ -9,6 +9,7 @@ import { fetchPullRequest, findPrsForIssue, parsePrRef, readRepoFile, searchRepo
 import { extractIssueKey } from './linear.ts';
 import { chooseExplainModel, INTENT_MODEL, resolveChoice } from './model-choice.ts';
 import { analysisId, defaultStore } from './store.ts';
+import { planUsage } from './usage.ts';
 
 // Roughly 150k tokens of diff. Past that the model reads the rest through read_file instead.
 const DIFF_BUDGET_CHARS = 600_000;
@@ -121,6 +122,11 @@ export async function resolvePrInput(input: string): Promise<PrRef> {
 
 export async function analyzePullRequest(input: string, onEvent: (e: AnalyzeEvent) => void, signal?: AbortSignal): Promise<Analysis> {
     onEvent({ type: 'phase', phase: 'fetch', label: 'Reading the pull request' });
+    const sessionPercent = async () => {
+        const usage = await planUsage({ fresh: true });
+        return usage.available ? usage.session.percent : null;
+    };
+    const planBefore = await sessionPercent();
     const ref = await resolvePrInput(input);
     const pr = await fetchPullRequest(ref);
     const id = analysisId(ref.owner, ref.repo, ref.number);
@@ -222,6 +228,11 @@ ${diff}
         id,
         createdAt: new Date().toISOString(),
         model: `${intentChoice.model} → ${choice.model}`,
+        stats: {
+            phases: { intent: intentRun.stats, verify: verifyRun.stats },
+            planBefore,
+            planAfter: await sessionPercent(),
+        },
         runInfo: {
             intent: { model: ranModel.intent, effort: intentChoice.effort },
             verify: { model: ranModel.verify || choice.model, effort: choice.effort },
