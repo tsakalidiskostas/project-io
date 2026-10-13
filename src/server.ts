@@ -15,6 +15,10 @@ import { describeRun, modelDisplayName, ModelSettings, REWRITE_MODEL, resolveCho
 import { combineStats, describeStats } from './stats.ts';
 import { defaultStore } from './store.ts';
 import { planUsage } from './usage.ts';
+import { branchStatus, pushBranch } from './work/git.ts';
+import {
+    answerPermission, createWorkSession, endSession, interrupt, MODES, NeedsRepoError, rememberRepo, sendMessage, sessionState, setMode, subscribe, type Mode,
+} from './work/session.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.PORT ?? 4317);
@@ -245,6 +249,66 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
         }
     }
 
+    if (route === 'GET /api/work') {
+        return json(res, { sessions: defaultStore().workSessions().map(w => ({ ...w, state: sessionState(w.id) })) });
+    }
+
+    if (route === 'POST /api/work') {
+        const { analysisId, cwd } = await readJson(req);
+        const session = await createWorkSession(typeof analysisId === 'string' ? { analysisId } : { cwd: String(cwd ?? '') });
+        return json(res, { session });
+    }
+
+    if (route === 'POST /api/settings/repos') {
+        const { slug, path: repoPath } = await readJson(req);
+        await rememberRepo(String(slug), String(repoPath ?? ''));
+        return json(res, {});
+    }
+
+    const workRoute = url.pathname.match(/^\/api\/work\/([0-9a-f]{16})(\/[a-z]+)?$/);
+    if (workRoute) {
+        const [, id, rest = ''] = workRoute;
+        const store = defaultStore();
+        const session = store.workSession(id);
+        if (req.method === 'GET' && rest === '') return json(res, { session, state: sessionState(id) });
+
+        // The transcript so far, then live events until the page goes away.
+        if (req.method === 'GET' && rest === '/events') {
+            const send = streamTo(res);
+            for (const { seq, event } of store.workEvents(id, Number(url.searchParams.get('after') ?? 0))) send({ seq, event });
+            send({ seq: null, event: { type: 'state', ...sessionState(id) } });
+            const unsubscribe = subscribe(id, (seq, event) => send({ seq, event }));
+            res.on('close', unsubscribe);
+            return;
+        }
+
+        if (req.method === 'GET' && rest === '/git') return json(res, { git: await branchStatus(session.cwd) });
+
+        if (req.method === 'POST') {
+            const body = await readJson(req);
+            if (rest === '/message') {
+                if (typeof body.text !== 'string' || !body.text.trim()) throw new Error('The message is empty.');
+                await sendMessage(id, body.text);
+                return json(res, {});
+            }
+            if (rest === '/permission') {
+                const decision = body.decision === 'allow' || body.decision === 'always' ? body.decision : 'deny';
+                const answers = body.answers && typeof body.answers === 'object' ? (body.answers as Record<string, string>) : undefined;
+                answerPermission(id, String(body.requestId), { decision, message: typeof body.message === 'string' ? body.message : undefined, answers });
+                return json(res, {});
+            }
+            if (rest === '/interrupt') return json(res, (await interrupt(id), {}));
+            if (rest === '/mode') {
+                if (!MODES.includes(body.mode as Mode)) throw new Error('Unknown permission mode.');
+                return json(res, (await setMode(id, body.mode as Mode), {}));
+            }
+            // Pushing is an explicit two-step click in the UI, like approving.
+            if (rest === '/push') return json(res, { output: await pushBranch(session.cwd), git: await branchStatus(session.cwd) });
+            if (rest === '/end') return json(res, (endSession(id), {}));
+            if (rest === '/delete') return json(res, (endSession(id, { forget: true }), {}));
+        }
+    }
+
     if (route === 'POST /api/rewrite') {
         const { text } = await readJson(req);
         const { text: rewritten } = await runAgent({
@@ -302,7 +366,7 @@ createServer((req, res) => {
     handle(req, res).catch(err => {
         if (res.headersSent) return res.end();
         res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ok: false, error: errorText(err) }));
+        res.end(JSON.stringify({ ok: false, error: errorText(err), needsRepo: err instanceof NeedsRepoError ? err.slug : undefined }));
     });
 }).listen(PORT, '127.0.0.1', () => {
     process.stdout.write(`Io listening on http://localhost:${PORT}\n`);

@@ -15,6 +15,7 @@ const OPERATIONS = [
     { key: 'comments', label: 'Draft suggested comments', auto: 'Sonnet, low effort. Drafted the first time a run’s claims are opened; reads no code.' },
     { key: 'selfEdit', label: 'Change Io', auto: 'Opus, high effort. A wrong edit to Io costs more than the tokens saved.' },
     { key: 'rewrite', label: 'Rewrite a comment', auto: 'Haiku, low effort.' },
+    { key: 'work', label: 'Work sessions', auto: 'Opus, medium effort. Takes effect when a session next starts or resumes.' },
 ];
 const MODELS = [['auto', 'Auto'], ['haiku', 'Haiku'], ['sonnet', 'Sonnet'], ['opus', 'Opus']];
 const EFFORTS = [['auto', 'Auto'], ['low', 'Low'], ['medium', 'Medium'], ['high', 'High'], ['xhigh', 'Extra high'], ['max', 'Max']];

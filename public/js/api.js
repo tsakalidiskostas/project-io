@@ -8,9 +8,20 @@ export async function post(url, body, onEvent) {
     });
     if (!res.headers.get('content-type')?.includes('ndjson')) {
         const data = await res.json();
-        if (!data.ok) throw new Error(data.error);
+        if (!data.ok) throw Object.assign(new Error(data.error), { data });
         return data;
     }
+    await readLines(res, onEvent);
+}
+
+// A GET that streams NDJSON until the server or the signal ends it.
+export async function stream(url, onEvent, signal) {
+    const res = await fetch(url, { signal });
+    if (!res.ok) throw new Error((await res.json()).error);
+    await readLines(res, onEvent);
+}
+
+async function readLines(res, onEvent) {
     const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
     let buffer = '';
     for (;;) {

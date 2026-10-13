@@ -17,6 +17,25 @@ function checkId(id: string): string {
     return id;
 }
 
+const SESSION_ID = /^[0-9a-f]{16}$/;
+
+function checkSessionId(id: string): string {
+    if (!SESSION_ID.test(id)) throw new Error(`Not a work session id: ${id}`);
+    return id;
+}
+
+export interface WorkSessionRecord {
+    id: string;
+    createdAt: string;
+    title: string;
+    cwd: string;
+    analysisId: string | null;
+    pr: { owner: string; repo: string; number: number; url: string; branch: string } | null;
+    // Claude Code's own session id, for resuming after Io restarts or the session goes idle.
+    claudeSessionId: string | null;
+    mode: 'default' | 'acceptEdits' | 'plan' | 'auto';
+}
+
 export interface AnalysisSummary {
     id: string;
     createdAt: string;
@@ -61,6 +80,19 @@ export function openStore(file = DEFAULT_DB) {
         created_at TEXT NOT NULL,
         json TEXT NOT NULL,
         PRIMARY KEY (analysis_id, n)
+    )`);
+    // Work sessions: Claude Code conversations in a checkout, with their transcript as numbered events.
+    db.exec(`CREATE TABLE IF NOT EXISTS work_sessions (
+        id TEXT PRIMARY KEY,
+        json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )`);
+    db.exec(`CREATE TABLE IF NOT EXISTS work_events (
+        session_id TEXT NOT NULL,
+        seq INTEGER NOT NULL,
+        json TEXT NOT NULL,
+        PRIMARY KEY (session_id, seq)
     )`);
     db.exec(`INSERT INTO runs (analysis_id, n, created_at, json)
              SELECT id, 1, created_at, json FROM analyses WHERE id NOT IN (SELECT analysis_id FROM runs)`);
@@ -176,6 +208,53 @@ export function openStore(file = DEFAULT_DB) {
             const mcp = tools.filter(t => t.startsWith('mcp__'));
             if (!mcp.length) return;
             db.prepare("INSERT INTO settings (key, json) VALUES ('mcpInventory', ?) ON CONFLICT(key) DO UPDATE SET json = excluded.json").run(JSON.stringify(mcp));
+        },
+
+        // Where each GitHub repo is cloned locally, keyed by lowercase "owner/repo".
+        repoPaths(): Record<string, string> {
+            const row = db.prepare("SELECT json FROM settings WHERE key = 'repos'").get() as { json: string } | undefined;
+            return row ? JSON.parse(row.json) : {};
+        },
+
+        saveRepoPath(slug: string, repoPath: string): void {
+            const repos = { ...this.repoPaths(), [slug.toLowerCase()]: repoPath };
+            db.prepare("INSERT INTO settings (key, json) VALUES ('repos', ?) ON CONFLICT(key) DO UPDATE SET json = excluded.json").run(JSON.stringify(repos));
+        },
+
+        saveWorkSession(s: WorkSessionRecord): void {
+            checkSessionId(s.id);
+            db.prepare(
+                `INSERT INTO work_sessions (id, json, created_at, updated_at) VALUES (?, ?, ?, ?)
+                 ON CONFLICT(id) DO UPDATE SET json = excluded.json, updated_at = excluded.updated_at`,
+            ).run(s.id, JSON.stringify(s), s.createdAt, new Date().toISOString());
+        },
+
+        workSession(id: string): WorkSessionRecord {
+            const row = db.prepare('SELECT json FROM work_sessions WHERE id = ?').get(checkSessionId(id)) as { json: string } | undefined;
+            if (!row) throw new Error(`No work session ${id}.`);
+            return JSON.parse(row.json);
+        },
+
+        workSessions(): (WorkSessionRecord & { updatedAt: string })[] {
+            const rows = db.prepare('SELECT json, updated_at FROM work_sessions ORDER BY updated_at DESC').all() as unknown as { json: string; updated_at: string }[];
+            return rows.map(r => ({ ...JSON.parse(r.json), updatedAt: r.updated_at }));
+        },
+
+        deleteWorkSession(id: string): void {
+            db.prepare('DELETE FROM work_events WHERE session_id = ?').run(checkSessionId(id));
+            db.prepare('DELETE FROM work_sessions WHERE id = ?').run(id);
+        },
+
+        appendWorkEvent(id: string, event: object): number {
+            const seq = ((db.prepare('SELECT MAX(seq) AS n FROM work_events WHERE session_id = ?').get(checkSessionId(id)) as { n: number | null }).n ?? 0) + 1;
+            db.prepare('INSERT INTO work_events (session_id, seq, json) VALUES (?, ?, ?)').run(id, seq, JSON.stringify(event));
+            db.prepare('UPDATE work_sessions SET updated_at = ? WHERE id = ?').run(new Date().toISOString(), id);
+            return seq;
+        },
+
+        workEvents(id: string, after = 0): { seq: number; event: Record<string, unknown> }[] {
+            const rows = db.prepare('SELECT seq, json FROM work_events WHERE session_id = ? AND seq > ? ORDER BY seq').all(checkSessionId(id), after) as unknown as { seq: number; json: string }[];
+            return rows.map(r => ({ seq: r.seq, event: JSON.parse(r.json) }));
         },
 
         dueForStateCheck(maxAgeMs: number): string[] {

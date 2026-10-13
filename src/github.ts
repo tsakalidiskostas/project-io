@@ -87,6 +87,10 @@ export async function postInlineComment(ref: PrRef, commitId: string, path: stri
     return out.trim();
 }
 
+export async function fetchPrHead(ref: PrRef): Promise<{ headRefName: string; isCrossRepository: boolean; title: string; url: string }> {
+    return JSON.parse(await runOrThrow('gh', ['pr', 'view', String(ref.number), '--repo', slug(ref), '--json', 'headRefName,isCrossRepository,title,url']));
+}
+
 export async function fetchPrState(ref: PrRef): Promise<{ state: string; headRefOid: string }> {
     return JSON.parse(await runOrThrow('gh', ['pr', 'view', String(ref.number), '--repo', slug(ref), '--json', 'state,headRefOid']));
 }

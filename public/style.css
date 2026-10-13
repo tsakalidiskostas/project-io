@@ -67,6 +67,7 @@ input, textarea {
     color: var(--ir-text);
 }
 input::placeholder, textarea::placeholder { color: var(--ir-text-muted); }
+input.mono { font-family: var(--ir-font-code); font-size: var(--ir-fs-code); }
 textarea.mono { font-family: var(--ir-font-code); font-size: var(--ir-fs-code); line-height: 1.6; resize: vertical; }
 
 .card {
@@ -98,6 +99,8 @@ textarea.mono { font-family: var(--ir-font-code); font-size: var(--ir-fs-code); 
 .accent-purple { --accent: var(--ir-purple-text); }
 .accent-yellow { --accent: var(--ir-yellow); }
 .accent-pink { --accent: var(--ir-pink-text); }
+.accent-orange { --accent: var(--ir-orange); }
+.accent-green { --accent: var(--ir-green); }
 button:disabled { opacity: 0.55; cursor: progress; }
 .actions { display: flex; flex-wrap: wrap; gap: var(--ir-space-3); align-items: center; }
 
@@ -138,6 +141,7 @@ button:disabled { opacity: 0.55; cursor: progress; }
 }
 .app-nav a.nav-cyan { color: var(--ir-cyan); }
 .app-nav a.nav-green { color: var(--ir-green); }
+.app-nav a.nav-orange { color: var(--ir-orange); }
 .app-nav a[aria-current="page"] { background: var(--ir-surface-raised); }
 
 /* Plan usage meter, bottom-left; the floating nav owns the bottom-right. */
@@ -484,6 +488,42 @@ button:disabled { opacity: 0.55; cursor: progress; }
     border: 0; background: var(--ir-orange); color: var(--ir-text-on-accent);
     display: flex; align-items: center; justify-content: center; cursor: pointer;
 }
+
+/* ---------- Work ---------- */
+.work-setup { border: 1.5px solid var(--ir-orange); }
+.work-setup .actions input, .work-new .actions input, .work-new .actions select { flex: 1 1 320px; width: auto; }
+.work-new { display: flex; flex-direction: column; gap: var(--ir-space-2); }
+.work-toolbar {
+    position: sticky; top: 0; z-index: 5;
+    display: flex; flex-wrap: wrap; align-items: center; gap: var(--ir-space-3);
+    padding: var(--ir-space-3) 0; background: var(--ir-bg); border-bottom: 1px solid var(--ir-divider);
+}
+.work-toolbar .spacer { flex: 1; }
+/* Clear of the chat launcher (top right) and the floating nav (bottom right). */
+.work-toolbar, .work-composer { margin-right: 64px; }
+.work-activity { display: inline-flex; align-items: center; gap: var(--ir-space-2); }
+.work-log { overflow: visible; padding: var(--ir-space-4) 0; font-size: var(--ir-fs-body); }
+.work-log .bubble-user, .work-log .bubble-claude { max-width: 80ch; }
+.work-log .step { font-family: var(--ir-font-code); font-size: 12px; color: var(--ir-text-muted); }
+.work-log .step.done { color: var(--ir-green); }
+.work-log details.tool summary { cursor: pointer; list-style: none; }
+.work-log details.tool.failed summary { color: var(--ir-pink-text); }
+.work-log details.tool pre { margin-top: var(--ir-space-2); max-height: 240px; }
+.work-log .permission { white-space: normal; border: 1.5px solid var(--ir-orange); padding: var(--ir-space-4); max-width: 100ch; }
+.work-log .permission h3 { color: var(--ir-orange); }
+.work-log .permission.settled { border-color: var(--ir-border); }
+.work-log .permission .actions input { flex: 1 1 220px; width: auto; padding: 8px 12px; font-size: var(--ir-fs-meta); }
+.work-log .permission pre { white-space: pre-wrap; }
+.questions fieldset { border: 0; padding: 0; margin: 0 0 var(--ir-space-3); display: flex; flex-direction: column; gap: var(--ir-space-2); }
+.questions legend { font-weight: 700; margin-bottom: var(--ir-space-2); }
+.questions [aria-pressed="true"] { background: var(--ir-cyan); color: var(--ir-text-on-accent); }
+.work-composer {
+    /* Sits above the session meter, which floats bottom-left. */
+    position: sticky; bottom: 76px; z-index: 5;
+    background: var(--ir-surface-sunk); border: 1px solid var(--ir-border); border-radius: var(--ir-radius-card);
+    margin-bottom: var(--ir-space-4);
+}
+.work-composer .quick .btn { min-height: 32px; font-size: var(--ir-fs-meta); }
 
 /* Point-at-it mode. */
 .point-banner {

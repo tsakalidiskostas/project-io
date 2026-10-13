@@ -11,6 +11,7 @@ import { initUsageMeter } from './js/usage-meter.js';
 //   #pr/<id>                    intent report (Overview)
 //   #pr/<id>/claims[/<claim>]   claims & code
 //   #pr/<id>/flow               behavior flow
+//   #work[/<session>]           Claude Code sessions in a checkout
 //   #settings                   Io's Claude profile and MCP servers
 async function route() {
     const [path, query = ''] = location.hash.slice(1).split('?');
@@ -18,7 +19,7 @@ async function route() {
     const root = $('app');
     const [screen, id, tab, claimId] = (path || 'inbox').split('/');
 
-    const navKey = screen === 'settings' ? 'settings' : 'inbox';
+    const navKey = screen === 'settings' || screen === 'work' ? screen : 'inbox';
     for (const link of document.querySelectorAll('.app-nav a')) {
         if (link.dataset.nav === navKey) link.setAttribute('aria-current', 'page');
         else link.removeAttribute('aria-current');
@@ -27,7 +28,10 @@ async function route() {
 
     try {
         if (screen !== 'pr') hideApprove();
-        if (screen === 'settings') {
+        if (screen === 'work') {
+            setChatScreen('Work');
+            await (await import('./js/work.js')).renderWork(root, id);
+        } else if (screen === 'settings') {
             setChatScreen('Settings');
             await renderSettings(root);
         } else if (screen === 'pr' && id) {
@@ -49,8 +53,9 @@ async function route() {
             h('section', { class: 'card', style: 'background: var(--ir-missing-tint)' }, h('h2', { class: 'error' }, 'Something went wrong'), h('p', null, err.message)),
         );
     }
-    if (!location.hash.includes('/claims/')) scrollTo(0, 0);
+    if (!location.hash.includes('/claims/') && !(screen === 'work' && id)) scrollTo(0, 0);
 }
+
 
 addEventListener('hashchange', route);
 await initChat();

@@ -42,6 +42,13 @@ from the handoff deliberately in three places:
 - The reference screens had `ds/rikstoto/…` design-system links. They were removed and must not come back: this
   repository is public and unrelated to that design system.
 
+## Work sessions
+
+The Work screen (`src/work/`) runs interactive Claude Code sessions in a checkout, with the CLI's own permission
+prompts answered in the browser. A PR's session runs in a git worktree beside the user's clone, never in the clone
+itself. Pushing happens only on an explicit two-step click in the UI; the session's instructions tell Claude not to
+push or post to GitHub unless the user asks in the conversation. Never add a path that pushes or posts on its own.
+
 ## Self-edit safety
 
 `scripts/supervisor.ts` and `src/self-edit/guard.ts` are write-protected from the agent. Change them only by hand.
