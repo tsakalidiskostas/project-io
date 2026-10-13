@@ -232,7 +232,14 @@ function questionForm(ev, answer) {
     return form;
 }
 
-function permissionCard(sessionId, ev, cwd) {
+// What "Always allow" grants, from Claude Code's own suggestion, e.g. "Bash(npm test:*)".
+function alwaysLabel(ev) {
+    const rules = (ev.suggestions ?? []).filter(s => s.type === 'addRules' && s.behavior === 'allow').flatMap(s => s.rules);
+    if (!rules.length) return 'Always allow';
+    return `Always allow ${rules.map(r => (r.ruleContent ? `${r.toolName}(${r.ruleContent})` : r.toolName)).join(', ')}`;
+}
+
+function permissionCard(sessionId, ev, cwd, toAuto) {
     const status = h('span', { class: 'status-line', role: 'status' });
     const reason = h('input', { class: 'input', placeholder: 'Optional: what to do instead', 'aria-label': 'What Claude should do instead' });
     const card = h('li', { class: 'card permission' });
@@ -254,7 +261,18 @@ function permissionCard(sessionId, ev, cwd) {
             ? null
             : h('div', { class: 'actions' },
                   h('button', { type: 'button', class: 'btn btn-primary', onclick: () => answer('allow') }, 'Allow'),
-                  ev.canAlways ? h('button', { type: 'button', class: 'btn btn-secondary accent-green', title: 'Allow this kind of call for the rest of the session', onclick: () => answer('always') }, 'Always allow') : null,
+                  ev.canAlways
+                      ? h('button', { type: 'button', class: 'btn btn-secondary accent-green', title: 'Saved in this checkout’s .claude/settings.local.json, as the terminal does', onclick: () => answer('always') }, alwaysLabel(ev))
+                      : null,
+                  h('button', {
+                      type: 'button',
+                      class: 'btn btn-secondary accent-orange',
+                      title: 'Claude Code decides which actions are safe to run without asking, and still asks about risky ones',
+                      onclick: async () => {
+                          await toAuto();
+                          answer('allow');
+                      },
+                  }, 'Allow and switch to Auto'),
                   h('button', { type: 'button', class: 'btn btn-secondary accent-pink', onclick: () => answer('deny') }, 'Deny'),
                   reason,
               ),
@@ -270,7 +288,7 @@ function permissionCard(sessionId, ev, cwd) {
     };
 }
 
-const DECISION = { allow: 'Allowed', always: 'Allowed for the rest of the session', deny: 'Denied' };
+const DECISION = { allow: 'Allowed', always: 'Always allowed', deny: 'Denied' };
 
 async function renderSession(root, id) {
     const { session } = await get(`/api/work/${id}`);
@@ -282,21 +300,22 @@ async function renderSession(root, id) {
     let lastSeq = 0;
     let replayed = false;
 
+    // Follows the conversation while the reader is at the bottom; reading further up is left alone.
     const nearBottom = () => innerHeight + scrollY >= document.documentElement.scrollHeight - 160;
-    const add = node => {
-        const stick = !replayed || nearBottom();
-        log.append(node);
-        if (stick && replayed) node.scrollIntoView({ block: 'end' });
-        return node;
-    };
+    const toBottom = () => scrollTo(0, document.documentElement.scrollHeight);
+    const add = node => (log.append(node), node);
 
     // ---- Toolbar ----
     const mode = h('select', {
         class: 'select',
         id: 'work-mode',
-        onchange: e => post(`/api/work/${id}/mode`, { mode: e.target.value }).catch(err => statusLine(toolbarStatus, err.message, 'error')),
+        onchange: e => changeMode(e.target.value),
     }, MODES.map(([v, label]) => h('option', { value: v }, label)));
     mode.value = session.mode;
+    const changeMode = value => {
+        mode.value = value;
+        return post(`/api/work/${id}/mode`, { mode: value }).catch(err => statusLine(toolbarStatus, err.message, 'error'));
+    };
     const activity = h('span', { class: 'meta work-activity', role: 'status' });
     const toolbarStatus = h('span', { class: 'status-line' });
     const gitText = h('span', { class: 'meta mono' }, 'Checking git…');
@@ -346,7 +365,7 @@ async function renderSession(root, id) {
     });
 
     // ---- Composer ----
-    const input = h('textarea', { id: 'work-input', rows: 3, placeholder: 'Ask Claude to change something. Enter sends, Shift+Enter for a new line.' });
+    const input = h('textarea', { id: 'work-input', rows: 3, placeholder: 'Ask Claude to change something. Enter sends, Shift+Enter for a new line, Shift+Tab changes the mode.' });
     const sendMessage = async () => {
         const text = input.value.trim();
         if (!text) return;
@@ -362,6 +381,10 @@ async function renderSession(root, id) {
         if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
             e.preventDefault();
             sendMessage();
+        } else if (e.key === 'Tab' && e.shiftKey) {
+            // Shift+Tab cycles the permission mode, as in the Claude Code terminal.
+            e.preventDefault();
+            changeMode(MODES[(MODES.findIndex(([v]) => v === mode.value) + 1) % MODES.length][0]);
         }
     });
     const composer = h('form', { class: 'composer work-composer', onsubmit: e => { e.preventDefault(); sendMessage(); } },
@@ -442,7 +465,7 @@ async function renderSession(root, id) {
                 break;
             }
             case 'permission': {
-                const p = permissionCard(id, ev, cwd);
+                const p = permissionCard(id, ev, cwd, () => changeMode('auto'));
                 permissions.set(ev.requestId, p);
                 add(p.card);
                 break;
@@ -465,6 +488,10 @@ async function renderSession(root, id) {
             case 'notice':
                 add(h('li', { class: 'step' }, ev.text));
                 break;
+            case 'mode':
+                mode.value = ev.mode;
+                add(h('li', { class: 'step' }, `Permission mode: ${MODES.find(([v]) => v === ev.mode)?.[1] ?? ev.mode}`));
+                break;
             case 'error':
                 add(h('li', { class: 'error' }, ev.text));
                 break;
@@ -472,7 +499,7 @@ async function renderSession(root, id) {
                 applyState(ev);
                 if (!replayed) {
                     replayed = true;
-                    scrollTo(0, document.documentElement.scrollHeight);
+                    toBottom();
                     input.focus();
                 }
                 break;
@@ -492,7 +519,9 @@ async function renderSession(root, id) {
                         if (seq <= lastSeq) return;
                         lastSeq = seq;
                     }
+                    const follow = replayed && (nearBottom() || event.type === 'user');
                     render(event);
+                    if (follow) toBottom();
                 }, abort.signal);
             } catch {
                 // the server went away; retry below unless the page moved on

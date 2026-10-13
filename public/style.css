@@ -541,10 +541,11 @@ button:disabled { opacity: 0.55; cursor: progress; }
 .questions legend { font-weight: 700; margin-bottom: var(--ir-space-2); }
 .questions [aria-pressed="true"] { background: var(--ir-cyan); color: var(--ir-text-on-accent); }
 .work-composer {
-    /* Sits above the session meter, which floats bottom-left. */
+    /* Sits above the session meter, which floats bottom-left. The bottom margin matches the sticky
+       offset, so at the end of the page the composer rests below the last message, not on top of it. */
     position: sticky; bottom: 76px; z-index: 5;
     background: var(--ir-surface-sunk); border: 1px solid var(--ir-border); border-radius: var(--ir-radius-card);
-    margin-bottom: var(--ir-space-4);
+    margin-bottom: 76px;
 }
 .work-composer .quick .btn { min-height: 32px; font-size: var(--ir-fs-meta); }
 
