@@ -56,6 +56,16 @@ async function route() {
     if (!location.hash.includes('/claims/') && !(screen === 'work' && id)) scrollTo(0, 0);
 }
 
+// Alt+digit follows the nav, top to bottom. Not Ctrl+digit: browsers keep that for switching tabs and
+// never hand it to the page. AltGr arrives as Ctrl+Alt and types characters (AltGr+2 is @ on Norwegian
+// keyboards), so a held Ctrl rules the shortcut out.
+addEventListener('keydown', e => {
+    if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || !/^Digit[1-9]$/.test(e.code)) return;
+    const link = document.querySelectorAll('.app-nav a')[Number(e.code.slice(5)) - 1];
+    if (!link) return;
+    e.preventDefault();
+    location.hash = link.getAttribute('href');
+});
 
 addEventListener('hashchange', route);
 await initChat();
