@@ -32,11 +32,11 @@ export async function get(url) {
 // Only explicit runs are cached: "latest" changes whenever the PR is re-analyzed.
 const cache = new Map();
 
-export async function getAnalysis(id, { run } = {}) {
+export async function getAnalysis(id, { run, fresh = false } = {}) {
     const url = `/api/analyses/${encodeURIComponent(id)}${run ? `?run=${run}` : ''}`;
     if (!run) return (await get(url)).analysis;
     const key = `${id}#${run}`;
-    if (!cache.has(key)) cache.set(key, get(url).then(d => d.analysis));
+    if (fresh || !cache.has(key)) cache.set(key, get(url).then(d => d.analysis));
     try {
         return await cache.get(key);
     } catch (err) {

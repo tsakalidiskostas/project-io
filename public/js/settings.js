@@ -11,6 +11,8 @@ const SERVER_STATUS = {
 const OPERATIONS = [
     { key: 'intent', label: 'Extract claims', auto: 'Sonnet, low effort. Reads only the issue and the PR description.' },
     { key: 'verify', label: 'Check claims against the code', auto: 'By PR size: Haiku for docs-only, Sonnet for small PRs, Opus for larger ones.' },
+    { key: 'flow', label: 'Draw the behavior flow', auto: 'Same as checking claims. Built the first time a run’s flow is opened.' },
+    { key: 'comments', label: 'Draft suggested comments', auto: 'Sonnet, low effort. Drafted the first time a run’s claims are opened; reads no code.' },
     { key: 'selfEdit', label: 'Change Io', auto: 'Opus, high effort. A wrong edit to Io costs more than the tokens saved.' },
     { key: 'rewrite', label: 'Rewrite a comment', auto: 'Haiku, low effort.' },
 ];

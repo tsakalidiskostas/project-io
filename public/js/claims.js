@@ -1,4 +1,5 @@
-import { analysisApi, post, prLink } from './api.js';
+import { analysisApi, getAnalysis, post, prLink } from './api.js';
+import { extraJob } from './extras.js';
 import { badge, h, icon, VERDICT } from './dom.js';
 import { highlight } from './highlight.js';
 import { commentComposer, prHeader } from './pr-shell.js';
@@ -45,6 +46,37 @@ function explanations(excerpt) {
             );
         }),
     );
+}
+
+// Comments are drafted for the whole run the first time its claims are opened.
+const drafted = a => a.commentsDrafted || a.claims.some(c => c.comment !== undefined);
+
+function commentsPending(root, a, claimId) {
+    const route = location.hash;
+    const status = h('p', { class: 'meta', role: 'status' });
+    const panel = h('section', { class: 'card composer-panel building', 'aria-label': 'Suggested PR comment' },
+        h('h3', null, h('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Drafting suggested comments'),
+        h('p', { class: 'meta' }, 'Comments are drafted the first time a run’s claims are opened, from the findings already made.'),
+        status,
+    );
+    const job = extraJob(a, 'comments');
+    const update = j => (status.textContent = j.error ? '' : j.status);
+    update(job);
+    job.listeners.add(update);
+    job.done
+        .then(async () => {
+            if (location.hash === route) renderClaims(root, await getAnalysis(a.id, { run: a.run, fresh: true }), claimId);
+        })
+        .catch(err => {
+            if (location.hash !== route) return;
+            panel.replaceChildren(
+                h('h3', { class: 'error' }, 'Comments could not be drafted'),
+                h('p', { class: 'error' }, err.message),
+                h('button', { type: 'button', class: 'btn btn-primary', onclick: () => renderClaims(root, a, claimId) }, 'Try again'),
+            );
+        })
+        .finally(() => job.listeners.delete(update));
+    return panel;
 }
 
 function suggestedComment(a, c) {
@@ -100,7 +132,7 @@ export function renderClaims(root, a, claimId) {
                 selected.excerpt
                     ? h('div', { class: 'code-area' }, codeViewer(a, selected.excerpt), explanations(selected.excerpt))
                     : h('p', { class: 'meta' }, 'No code excerpt for this claim.'),
-                suggestedComment(a, selected),
+                drafted(a) ? suggestedComment(a, selected) : commentsPending(root, a, selected.id),
             ),
         ),
     );

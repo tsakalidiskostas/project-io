@@ -41,7 +41,7 @@ export const INTENT_MODEL: ModelChoice = { model: 'sonnet', effort: 'low', reaso
 export const REWRITE_MODEL: ModelChoice = { model: 'haiku', effort: 'low', reason: 'rewriting a comment' };
 
 // Per-operation overrides chosen in Settings; 'auto' keeps the choice above.
-export const OPERATIONS = ['intent', 'verify', 'selfEdit', 'rewrite'] as const;
+export const OPERATIONS = ['intent', 'verify', 'flow', 'comments', 'selfEdit', 'rewrite'] as const;
 export type Operation = (typeof OPERATIONS)[number];
 
 const Override = z.object({
@@ -76,3 +76,6 @@ export function describeRun(info: { intent: { model: string; effort: string }; v
     const part = (p: { model: string; effort: string }) => `${modelDisplayName(p.model)} ${p.effort}`;
     return `extracted claims with ${part(info.intent)}, claims vs code with ${part(info.verify)}`;
 }
+
+// Drafting comments from findings already made needs no code reading: Sonnet at low effort.
+export const COMMENTS_MODEL: ModelChoice = { model: 'sonnet', effort: 'low', reason: 'drafting comments from the findings' };

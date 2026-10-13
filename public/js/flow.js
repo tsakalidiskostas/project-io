@@ -1,6 +1,7 @@
 import DOMPurify from 'https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.es.mjs';
 import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs';
-import { analysisApi, post } from './api.js';
+import { analysisApi, getAnalysis, post } from './api.js';
+import { extraJob } from './extras.js';
 import { append, h, statusLine } from './dom.js';
 import { commentComposer, prHeader } from './pr-shell.js';
 
@@ -137,7 +138,37 @@ function wire(svg, a, tooltip, frame) {
     };
 }
 
+// Shown while a run's flow is built for the first time; swaps itself for the flow when done.
+function renderFlowPending(root, a) {
+    const route = location.hash;
+    const status = h('p', { class: 'meta', role: 'status' });
+    const body = h('div', { class: 'card building' },
+        h('h3', null, h('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Building the behavior flow'),
+        h('p', null, 'The flow is drawn the first time a run’s flow is opened, so analyses stay quicker and cheaper when nobody looks at it. It is kept with the run afterwards.'),
+        status,
+    );
+    root.replaceChildren(prHeader(a, 'flow', { actions: false }), body);
+    const job = extraJob(a, 'flow');
+    const update = j => (status.textContent = j.error ? '' : j.status);
+    update(job);
+    job.listeners.add(update);
+    job.done
+        .then(async () => {
+            if (location.hash === route) renderFlow(root, await getAnalysis(a.id, { run: a.run, fresh: true }));
+        })
+        .catch(err => {
+            if (location.hash !== route) return;
+            body.replaceChildren(
+                h('h3', { class: 'error' }, 'The flow could not be built'),
+                h('p', { class: 'error' }, err.message),
+                h('button', { type: 'button', class: 'btn btn-primary', onclick: () => renderFlowPending(root, a) }, 'Try again'),
+            );
+        })
+        .finally(() => job.listeners.delete(update));
+}
+
 export async function renderFlow(root, a) {
+    if (!a.flow) return renderFlowPending(root, a);
     initMermaid();
     const scenarios = a.flow.scenarios ?? [];
     const hasDiff = a.flow.nodes.some(n => n.change) && a.mermaidViews;

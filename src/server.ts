@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runAgent } from './agent-loop.ts';
 import { flowToMermaid, reviewSummary, type Analysis } from './analysis.ts';
-import { analyzePullRequest } from './analyze.ts';
+import { analyzePullRequest, buildFlow, draftComments } from './analyze.ts';
 import { approvePr, fetchPrState, fetchReviewState, postInlineComment, postPrComment } from './github.ts';
 import { authStatus, discoverProfiles, importServer, IO_CLAUDE_DIR, listIoServers } from './profile.ts';
 import { runOrThrow } from './run.ts';
@@ -80,14 +80,18 @@ function costLabel(a: Analysis): { total: string; phases: string[] } | null {
 function withViews(a: Analysis, run: number) {
     const verdicts = Object.fromEntries(a.claims.map(c => [c.id, c.verdict]));
     const runs = defaultStore().runs(a.id).map(r => ({ n: r.n, createdAt: r.createdAt, label: runLabel(r) }));
+    const flow = a.flow;
     return {
         ...a,
-        mermaid: flowToMermaid(a.flow, verdicts),
-        mermaidViews: {
-            diff: flowToMermaid(a.flow, verdicts, 'diff'),
-            before: flowToMermaid(a.flow, verdicts, 'before'),
-            after: flowToMermaid(a.flow, verdicts, 'after'),
-        },
+        // Null until the run's flow is built on first open.
+        mermaid: flow ? flowToMermaid(flow, verdicts) : null,
+        mermaidViews: flow
+            ? {
+                  diff: flowToMermaid(flow, verdicts, 'diff'),
+                  before: flowToMermaid(flow, verdicts, 'before'),
+                  after: flowToMermaid(flow, verdicts, 'after'),
+              }
+            : null,
         summaryMarkdown: reviewSummary(a),
         run,
         runs,
@@ -203,6 +207,22 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
             return { owner, repo, number };
         };
         if (req.method === 'GET' && rest === '/review') return json(res, { review: await fetchReviewState(prRef()) });
+
+        // Extras built the first time a run's flow or claims are opened; streamed like an analysis.
+        const extra = rest === '/flow' ? buildFlow : rest === '/comments' ? draftComments : null;
+        if (req.method === 'POST' && extra) {
+            const abort = new AbortController();
+            res.on('close', () => abort.abort());
+            const send = streamTo(res);
+            try {
+                await extra(id, run, send, abort.signal);
+                send({ type: 'done' });
+            } catch (err) {
+                send({ type: 'error', error: errorText(err) });
+            }
+            res.end();
+            return;
+        }
 
         // Approving is an explicit two-step click in the UI; it reviews as the user's gh login and never merges.
         if (req.method === 'POST' && rest === '/approve') {

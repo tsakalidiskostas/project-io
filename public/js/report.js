@@ -118,7 +118,7 @@ export function renderReport(root, a) {
         h('section', { class: 'section-head', 'aria-label': 'Generated artifacts', style: 'gap: var(--ir-space-4)' },
             h('h2', { class: 'h2-orange' }, 'Generated for this PR'),
             h('div', { class: 'artifacts' },
-                h('a', { class: 'artifact', href: prLink(a, '/flow') }, h('b', null, 'Behavior flow'), h('span', null, 'Before and after, with each step tied to a claim.')),
+                h('a', { class: 'artifact', href: prLink(a, '/flow') }, h('b', null, 'Behavior flow'), h('span', null, a.flow ? 'Before and after, with each step tied to a claim.' : 'Before and after, with each step tied to a claim. Built when you first open it.')),
                 h('a', { class: 'artifact', href: prLink(a, '/claims') }, h('b', null, 'Annotated code walkthrough'), h('span', null, 'The key lines for each claim, explained.')),
                 h('a', {
                     class: 'artifact',

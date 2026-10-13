@@ -92,18 +92,25 @@ export const VerifyOutput = z.object({
             codeDoes: z.string(),
             evidence: z.array(z.object({ path: z.string(), startLine: z.number().int(), endLine: z.number().int() })),
             excerpt: ExcerptSpec.describe('head-side lines to show; for a missing claim, where it would naturally go'),
-            comment: z.object({
-                kind: z.enum(['request_changes', 'comment', 'none']),
-                path: z.string(),
-                line: z.number().int(),
-                body: z.string(),
-            }),
         }),
     ),
     unclaimed: z.array(z.object({ title: z.string(), path: z.string(), line: z.number().int(), why: z.string() })),
-    flow: Flow,
 });
 export type VerifyOutput = z.infer<typeof VerifyOutput>;
+
+// Built on demand, the first time someone opens the flow or the claims of a run.
+export const FlowOutput = z.object({ flow: Flow });
+export const CommentsOutput = z.object({
+    comments: z.array(
+        z.object({
+            claimId: z.string(),
+            kind: z.enum(['request_changes', 'comment', 'none']),
+            path: z.string(),
+            line: z.number().int(),
+            body: z.string(),
+        }),
+    ),
+});
 
 export interface ExcerptLine {
     n: number;
@@ -160,10 +167,13 @@ export interface Analysis {
         codeDoes: string;
         evidence: { path: string; startLine: number; endLine: number }[];
         excerpt: Excerpt | null;
-        comment: { kind: 'request_changes' | 'comment'; path: string; line: number; body: string } | null;
+        // Undefined until comments are drafted for the run; null when there is nothing to say.
+        comment?: { kind: 'request_changes' | 'comment'; path: string; line: number; body: string } | null;
     }[];
     unclaimed: { title: string; path: string; line: number; why: string; expected: boolean }[];
-    flow: Flow;
+    // Undefined until someone opens the run's flow.
+    flow?: Flow;
+    commentsDrafted?: boolean;
     status: Status;
 }
 

@@ -4,10 +4,10 @@ import path from 'node:path';
 import { createSdkMcpServer, tool, type CanUseTool } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
 import { isReadOnlyToolName, runAgent, type LoopEvent } from './agent-loop.ts';
-import { addedLinesByFile, buildExcerpt, cleanFlow, IntentOutput, toOutputSchema, issueKeyFromLinearUrl, VerifyOutput, type Analysis } from './analysis.ts';
+import { addedLinesByFile, buildExcerpt, cleanFlow, CommentsOutput, FlowOutput, IntentOutput, toOutputSchema, issueKeyFromLinearUrl, VerifyOutput, type Analysis } from './analysis.ts';
 import { fetchPullRequest, findPrsForIssue, parsePrRef, readRepoFile, searchRepoCode, type PrRef, type PullRequest } from './github.ts';
 import { extractIssueKey } from './linear.ts';
-import { chooseExplainModel, INTENT_MODEL, resolveChoice } from './model-choice.ts';
+import { chooseExplainModel, COMMENTS_MODEL, INTENT_MODEL, resolveChoice } from './model-choice.ts';
 import { analysisId, defaultStore } from './store.ts';
 import { planUsage } from './usage.ts';
 
@@ -47,10 +47,14 @@ For every claim, same id and order:
 - codeDoes: one short paragraph on what the code actually does, naming real identifiers.
 - evidence: head-side file and line ranges that support the verdict.
 - excerpt: 10–40 head-side lines that best show it — for a missing claim, where the behaviour would naturally go — with one to three annotations, each tied to specific lines and comparing the code with the claim in a sentence. Line numbers must be real head-side numbers: read the file to get them.
-- comment: for partial or missing, kind "request_changes" with a review comment the author can act on, anchored to a line inside the diff where possible. For delivered, kind "comment" only if something is worth saying; otherwise kind "none", empty body, path "" and line 0.
 
 unclaimed: changes in the diff that no claim explains and a reviewer should know about — behaviour, not formatting or renames — each pointing at a head-side line.
 verdict.summary: one or two plain sentences a reviewer reads first.
+
+Be concrete and brief. When the code and a claim disagree, say exactly how.`;
+
+const FLOW_SYSTEM = `You draw how a pull request changes behaviour, for a reviewer. You get the claims it was checked against, with their verdicts, the changes no claim explains, the PR metadata and its diff, and you can read any file at the base or head commit and search the repository.
+
 flow: one graph of the behaviour this PR touches, before and after, 6–18 nodes, built from the code rather than the description: start/end, steps, decisions. Read the base side to see how it worked before.
 - change on every node and edge: "added" exists only after this PR, "removed" only before, "changed" in both but behaves differently, else "unchanged".
 - Set claimId on nodes that fulfil a claim, and add a node where each missing claim's step would sit, with its claimId, so the gap shows. Put unclaimedNote on the node an unclaimed change touches.
@@ -59,7 +63,16 @@ flow: one graph of the behaviour this PR touches, before and after, 6–18 nodes
 - scenarios: the two to six paths a reviewer would want to compare, e.g. "Before · purchase succeeds", "After · purchase succeeds", "After · identity check denied". A before path uses only unchanged, changed and removed nodes; an after path only unchanged, changed and added ones. steps lists node ids from start to end, each consecutive pair joined by an edge.
 flow.before: two or three sentences on how it worked before.
 
-Be concrete and brief. When the code and a claim disagree, say exactly how.`;
+Be concrete and brief.`;
+
+const COMMENTS_SYSTEM = `You draft pull request review comments from a finished review. For each claim you get its verdict, what the code does, and the excerpt it was judged on; lines marked "+" were added by the PR.
+
+Return one comment per claim, same claimId:
+- partial or missing: kind "request_changes", a comment the author can act on: what the claim asked, what the code does instead, and what would close the gap.
+- delivered or unverifiable: kind "comment" only if something is worth raising; otherwise kind "none", empty body, path "" and line 0.
+- Anchor path and line on an added ("+") line from the excerpt when one fits, so the comment can be placed inline; otherwise path "" and line 0.
+
+Write as a colleague: direct, specific, courteous, no preamble.`;
 
 export type AnalyzeEvent =
     | LoopEvent
@@ -256,7 +269,7 @@ ${diff}
         claims: await Promise.all(
             intent.claims.map(async c => {
                 const v = verified.get(c.id);
-                if (!v) return { ...c, verdict: 'unverifiable' as const, codeDoes: 'Not assessed.', evidence: [], excerpt: null, comment: null };
+                if (!v) return { ...c, verdict: 'unverifiable' as const, codeDoes: 'Not assessed.', evidence: [], excerpt: null };
                 const source = await fileAtHead(v.excerpt.path);
                 return {
                     ...c,
@@ -264,14 +277,125 @@ ${diff}
                     codeDoes: v.codeDoes,
                     evidence: v.evidence,
                     excerpt: source.startsWith('ERROR:') ? null : buildExcerpt(source, v.excerpt, added.get(v.excerpt.path) ?? new Set()),
-                    comment: v.comment.kind === 'none' || !v.comment.body ? null : { ...v.comment, kind: v.comment.kind },
                 };
             }),
         ),
         unclaimed: verify.unclaimed.map(u => ({ ...u, expected: false })),
-        flow: cleanFlow(verify.flow),
         status: 'review',
     };
     defaultStore().save(analysis);
     return analysis;
+}
+
+// ---- Built on demand ----
+
+// One build of each kind per run at a time; a second request is told instead of starting another.
+const building = new Set<string>();
+
+async function onDemand<T>(key: string, build: () => Promise<T>): Promise<T> {
+    if (building.has(key)) throw new Error('Already being built; it will appear when ready.');
+    building.add(key);
+    try {
+        return await build();
+    } finally {
+        building.delete(key);
+    }
+}
+
+function claimsForPrompt(a: Analysis): string {
+    return JSON.stringify(
+        a.claims.map(c => ({ id: c.id, title: c.title, claimed: c.claimed, verdict: c.verdict, codeDoes: c.codeDoes, evidence: c.evidence })),
+        null,
+        1,
+    );
+}
+
+export type ExtraEvent = LoopEvent | { type: 'phase'; label: string };
+
+export function buildFlow(id: string, run: number, onEvent: (e: ExtraEvent) => void, signal?: AbortSignal): Promise<Analysis> {
+    return onDemand(`${id}#${run}#flow`, async () => {
+        const store = defaultStore();
+        const a = store.get(id, run);
+        onEvent({ type: 'phase', label: 'Reading the pull request' });
+        const live = await fetchPullRequest({ owner: a.pr.owner, repo: a.pr.repo, number: a.pr.number });
+        // Read files at the commits this run analysed, even if the PR has moved on since.
+        const pr = { ...live, headRefOid: a.pr.headRefOid, baseRefOid: a.pr.baseRefOid ?? live.baseRefOid };
+        const { text: diff } = budgetDiff(pr.diff, DIFF_BUDGET_CHARS);
+        const choice = resolveChoice(chooseExplainModel({ diffChars: pr.diff.length, files: pr.files.map(f => f.path) }), store.modelSettings().flow);
+        onEvent({ type: 'phase', label: 'Drawing the before and after' });
+        const result = await runAgent({
+            prompt: `<claims>\n${claimsForPrompt(a)}\n</claims>
+
+<unclaimed_changes>
+${JSON.stringify(a.unclaimed.map(u => ({ title: u.title, path: u.path, line: u.line })), null, 1)}
+</unclaimed_changes>
+
+<pull_request>
+${pr.ref.owner}/${pr.ref.repo}#${pr.ref.number} — ${pr.title}
+${pr.headRefName} (${pr.headRefOid.slice(0, 7)}) → ${pr.baseRefName} (${pr.baseRefOid.slice(0, 7)})
+</pull_request>
+
+<diff>
+${diff}
+</diff>`,
+            choice,
+            options: {
+                cwd: await scratchDir(),
+                systemPrompt: FLOW_SYSTEM,
+                settingSources: [],
+                tools: [],
+                mcpServers: { io: repoTools(pr) },
+                canUseTool: verifyTools,
+                outputFormat: { type: 'json_schema', schema: toOutputSchema(FlowOutput) },
+                maxTurns: 40,
+            },
+            onEvent,
+            signal,
+        });
+        const { flow } = FlowOutput.parse(result.structured);
+        return store.update(id, x => {
+            x.flow = cleanFlow(flow);
+            x.stats = { phases: {}, planBefore: null, planAfter: null, ...x.stats };
+            x.stats.phases.flow = result.stats;
+        }, run);
+    });
+}
+
+// Comments need no code tools: each claim's verdict, finding and real excerpt are already stored.
+export function draftComments(id: string, run: number, onEvent: (e: ExtraEvent) => void, signal?: AbortSignal): Promise<Analysis> {
+    return onDemand(`${id}#${run}#comments`, async () => {
+        const store = defaultStore();
+        const a = store.get(id, run);
+        const excerpts = a.claims
+            .filter(c => c.excerpt)
+            .map(c => `<excerpt claim="${c.id}" path="${c.excerpt!.path}">\n${c.excerpt!.lines.map(l => `${l.added ? '+' : ' '}${l.n}: ${l.text}`).join('\n')}\n</excerpt>`)
+            .join('\n\n');
+        onEvent({ type: 'phase', label: 'Drafting suggested comments' });
+        const result = await runAgent({
+            prompt: `<claims>\n${claimsForPrompt(a)}\n</claims>\n\n${excerpts}`,
+            choice: resolveChoice(COMMENTS_MODEL, store.modelSettings().comments),
+            options: {
+                cwd: await scratchDir(),
+                systemPrompt: COMMENTS_SYSTEM,
+                settingSources: [],
+                tools: [],
+                strictMcpConfig: true,
+                outputFormat: { type: 'json_schema', schema: toOutputSchema(CommentsOutput) },
+                maxTurns: 3,
+            },
+            onEvent,
+            signal,
+        });
+        const { comments } = CommentsOutput.parse(result.structured);
+        const byClaim = new Map(comments.map(c => [c.claimId, c]));
+        return store.update(id, x => {
+            for (const claim of x.claims) {
+                const c = byClaim.get(claim.id);
+                claim.comment = !c || c.kind === 'none' || !c.body ? null : { kind: c.kind, path: c.path, line: c.line, body: c.body };
+            }
+            x.commentsDrafted = true;
+            x.stats = { phases: {}, planBefore: null, planAfter: null, ...x.stats };
+            x.stats.phases.comments = result.stats;
+        }, run);
+    });
 }
