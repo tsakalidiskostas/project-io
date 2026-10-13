@@ -210,6 +210,17 @@ export function openStore(file = DEFAULT_DB) {
             db.prepare("INSERT INTO settings (key, json) VALUES ('mcpInventory', ?) ON CONFLICT(key) DO UPDATE SET json = excluded.json").run(JSON.stringify(mcp));
         },
 
+        // The permission mode new work sessions start in.
+        workMode(): WorkSessionRecord['mode'] {
+            const row = db.prepare("SELECT json FROM settings WHERE key = 'workMode'").get() as { json: string } | undefined;
+            const mode = row ? JSON.parse(row.json) : 'auto';
+            return ['default', 'acceptEdits', 'plan', 'auto'].includes(mode) ? mode : 'auto';
+        },
+
+        saveWorkMode(mode: WorkSessionRecord['mode']): void {
+            db.prepare("INSERT INTO settings (key, json) VALUES ('workMode', ?) ON CONFLICT(key) DO UPDATE SET json = excluded.json").run(JSON.stringify(mode));
+        },
+
         // Where each GitHub repo is cloned locally, keyed by lowercase "owner/repo".
         repoPaths(): Record<string, string> {
             const row = db.prepare("SELECT json FROM settings WHERE key = 'repos'").get() as { json: string } | undefined;

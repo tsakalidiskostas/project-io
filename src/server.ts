@@ -259,6 +259,15 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
         return json(res, { session });
     }
 
+    if (route === 'GET /api/settings/work') return json(res, { mode: defaultStore().workMode() });
+
+    if (route === 'POST /api/settings/work') {
+        const { mode } = await readJson(req);
+        if (!MODES.includes(mode as Mode)) throw new Error('Unknown permission mode.');
+        defaultStore().saveWorkMode(mode as Mode);
+        return json(res, { mode });
+    }
+
     if (route === 'POST /api/settings/repos') {
         const { slug, path: repoPath } = await readJson(req);
         await rememberRepo(String(slug), String(repoPath ?? ''));

@@ -65,6 +65,32 @@ async function modelsCard() {
     );
 }
 
+const WORK_MODES = [['auto', 'Auto'], ['acceptEdits', 'Accept edits'], ['default', 'Ask before changes'], ['plan', 'Plan only']];
+
+async function workCard() {
+    const status = h('p', { class: 'status-line', role: 'status' });
+    const { mode } = await get('/api/settings/work');
+    return h('section', { class: 'card', 'aria-label': 'Work sessions' },
+        h('h2', { class: 'h2-orange' }, 'Work sessions'),
+        h('p', { class: 'meta' }, 'The permission mode a new session starts in. Auto lets Claude Code run what it judges safe and still asks about risky actions. Change it per session in the session’s toolbar, or with Shift+Tab in its message box.'),
+        h('ul', { class: 'rows' },
+            h('li', null,
+                h('label', { class: 'row-name', for: 'work-default-mode' }, 'New sessions start in'),
+                select('work-default-mode', WORK_MODES, mode, async e => {
+                    statusLine(status, 'Saving…');
+                    try {
+                        await post('/api/settings/work', { mode: e.target.value });
+                        statusLine(status, 'Saved. Sessions you start from now on use it.', 'ok');
+                    } catch (err) {
+                        statusLine(status, err.message, 'error');
+                    }
+                }),
+            ),
+        ),
+        status,
+    );
+}
+
 export async function renderSettings(root) {
     const auth = h('p', { class: 'meta', role: 'status' }, 'Checking…');
     const dir = h('code', null, '…');
@@ -73,9 +99,11 @@ export async function renderSettings(root) {
     const importStatus = h('p', { class: 'status-line', role: 'status' });
 
     const models = h('div');
+    const work = h('div');
     root.replaceChildren(
         h('h1', null, 'Settings'),
         models,
+        work,
         h('section', { class: 'card', 'aria-label': 'Claude profile' },
             h('h2', { class: 'h2-yellow' }, 'Io’s Claude profile'),
             h('p', null, 'Io runs Claude Code in a profile of its own, whichever shell or profile you start it from. Its login and MCP servers live in ', dir, '. GitHub goes through the GitHub CLI (', h('code', null, 'gh auth login'), ').'),
@@ -95,6 +123,7 @@ export async function renderSettings(root) {
     );
 
     modelsCard().then(card => models.replaceWith(card));
+    workCard().then(card => work.replaceWith(card)).catch(() => work.remove());
 
     let profile;
     try {

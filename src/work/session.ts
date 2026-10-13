@@ -124,12 +124,12 @@ export async function createWorkSession(from: { analysisId: string } | { cwd: st
             analysisId: from.analysisId,
             pr: { owner: pr.owner, repo: pr.repo, number: pr.number, url: head.url, branch: head.headRefName },
             claudeSessionId: null,
-            mode: 'default',
+            mode: store.workMode(),
         };
     } else {
         if (!from.cwd.trim() || !existsSync(from.cwd) || !statSync(from.cwd).isDirectory()) throw new Error(`${from.cwd || 'That'} is not a folder.`);
         const cwd = realpathSync.native(from.cwd);
-        record = { id: newId(), createdAt: new Date().toISOString(), title: path.basename(cwd), cwd, analysisId: null, pr: null, claudeSessionId: null, mode: 'default' };
+        record = { id: newId(), createdAt: new Date().toISOString(), title: path.basename(cwd), cwd, analysisId: null, pr: null, claudeSessionId: null, mode: store.workMode() };
     }
     store.saveWorkSession(record);
     emit(record.id, { type: 'notice', text: `Working in ${record.cwd}` });
@@ -187,6 +187,7 @@ function start(s: WorkSessionRecord): Live {
                         description: opts.description ?? null,
                         input: clip(toolInput),
                         canAlways: Boolean(opts.suggestions?.length) && !opts.suppressAlwaysAllowRule,
+                        suggestions: opts.suggestions ?? [],
                     });
                     emitState(s.id);
                 }),
@@ -298,7 +299,7 @@ export async function setMode(id: string, mode: Mode): Promise<void> {
     const store = defaultStore();
     store.saveWorkSession({ ...store.workSession(id), mode });
     await live.get(id)?.query.setPermissionMode(mode);
-    emit(id, { type: 'notice', text: `Permission mode: ${mode}` });
+    emit(id, { type: 'mode', mode });
 }
 
 export function endSession(id: string, { forget = false } = {}) {

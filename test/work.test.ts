@@ -80,3 +80,10 @@ test('repo paths are keyed by lowercase owner/repo', () => {
     store.saveRepoPath('NorskRikstoto/Beta', 'C:/code/beta');
     assert.deepEqual(store.repoPaths(), { 'norskrikstoto/beta': 'C:/code/beta' });
 });
+
+test('new work sessions start in auto mode unless Settings say otherwise', () => {
+    const store = openStore(path.join(mkdtempSync(path.join(os.tmpdir(), 'io-mode-')), 'io.db'));
+    assert.equal(store.workMode(), 'auto');
+    store.saveWorkMode('default');
+    assert.equal(store.workMode(), 'default');
+});
